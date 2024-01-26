@@ -1,1 +1,1 @@
-barren.bmp,512,512
+barren.bmp,768,512
