@@ -1,0 +1,2 @@
+blue_crystal_low.bmp,769,512
+blue_crystal_high.bmp,769,512

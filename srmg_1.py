@@ -10,6 +10,19 @@
 #   - Runs map converter, doing a full conversion of the map
 #   - Runs 7zip, putting all the requisite bits of the map into a mapfile.
 
+#TODO:
+#   - Heightmaps
+#       - Offer a different generation method that places/uses prefab heightmaps
+#       - Offer a different generation method that uses a premade heightmap
+#       - I think 128 is a bit too large for blurradius.
+#           - Changed, different cap.
+#   - Metalmap
+#       - Make the mex placement a big smarter - stop placing them on top of areas with significant slopes
+#           - Still trying on this, it's failing though.
+#           - We may have too many mexes on the map.
+#   - Texturemap
+
+
 
 import random
 import struct
@@ -47,18 +60,18 @@ def generate_map (map_properties):
     height = map_properties["mapsizey"] * 64 + 1
     
     maxflats = 128    #For now, I think 8 is fine.
-    blots = random.randint(10, 20) - 4
+    blots = random.randint(14, 24) - 4
     blotleast = random.randint(1, 2) * 20
     blotmost = random.randint(3, 6) * 20
     blotbuild = random.randint(0, 2)    #0 - build up, 1 - scoop, 2 - break down.
-    hdiv = random.randint(1,2) * 5       #Height division, multiply by. Makes it in chunks of hdiv.
+    #hdiv = random.randint(1,2) * 5       #Height division, multiply by. Makes it in chunks of hdiv.
     bmul = 1
-    if(blotbuild == 2):
+    if(blotbuild != 1):
         bmul = 2
-    blurradius = random.randint(1, 4) * 16 * bmul
+    blurradius = random.randint(1, 3) * 16 * bmul
     #divby = int((random.randint(1, 4) * 128) / maxflats)       #divby adjusts coordinate neighbors
     
-    percellchange = random.randint(1, 4)    #per cell, how much can height change
+    #percellchange = random.randint(1, 4)    #per cell, how much can height change
     #steepmultiplier = 4  #how brutal is the logistics curve? Deprecated, using cubic splines
 
     fliptype = random.randint(0, 2) #0 is horizontal, 1 is vertical, 2 is quads
@@ -84,9 +97,9 @@ def generate_map (map_properties):
     print("\tblotmost: " + str(blotmost))
     print("\tblurradius: " + str(blurradius))
     print("\tmaxflats = " + str(maxflats))
-    print("\thdiv = " + str(hdiv))
+    #print("\thdiv = " + str(hdiv))
     #print("\tdivby = " + str(divby))
-    print("\tpercellchange = " + str(percellchange))
+    #print("\tpercellchange = " + str(percellchange))
     #print("\tsteepmultiplier = " + str(steepmultiplier))
 
     genmap = []
@@ -297,7 +310,7 @@ def generate_map (map_properties):
         m = 0
         oskip = False
         if((fliptype == 1) or (fliptype == 2)):
-            if (n >= (len(coords) / 2)):
+            if (n >= int((len(coords) - 1)/2) + 1):
                 q = n
                 while q < len(coords):
                     p = 0
@@ -316,7 +329,7 @@ def generate_map (map_properties):
             while m < len(coords[0]):
                 skip = False
                 if((fliptype == 0) or (fliptype == 2)):
-                    if (m >= (len(coords[0]) / 2)):
+                    if (m >= int((len(coords[0])-1) / 2) + 1):
                         q = m
                         while q < len(coords[0]):
                             xvar = coords[n][q][0]
@@ -576,6 +589,9 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
     def distfrom (xo, yo, xt, yt):
         distsq = (xt - xo) * (xt - xo) + (yt - yo) * (yt - yo)
         return distsq
+
+    mexchk = 4 #checks this many pixels left/right of the mex possiblepoint
+    mexthresh = 4 #slope across mexchk up/down needs to be less than this
     
     if(fliptype == 0):
         n = 0
@@ -591,7 +607,22 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
             r = 5000
             while((m < len(metalpoints)) and (r > 0)):
                 dst = distfrom(possiblepoint[0], possiblepoint[1], metalpoints[m][0], metalpoints[m][1])
-                if(dst < 16):
+                #mex sanity check
+                xl = min(possiblepoint[0] - mexchk, 0)
+                xm = max(possiblepoint[0] + mexchk, xcoord - 1)
+                yu = min(possiblepoint[1] - mexchk, 0)
+                yl = max(possiblepoint[1] + mexchk, ycoord - 1)
+
+                xs = abs(condensemap[possiblepoint[1]][xm] - condensemap[possiblepoint[1]][xl]) / (2 * mexchk)
+                ys = abs(condensemap[yu][possiblepoint[0]] - condensemap[yl][possiblepoint[0]]) / (2 * mexchk)
+
+                #print("xs: " + str(xs) + " / ys: " + str(ys))
+
+                Skip = False
+                if(xs > mexthresh) or (ys > mexthresh):
+                    Skip = True
+
+                if(dst < 16) or (Skip == True):
                     possiblepoint = [random.randint(lbound, rbound), random.randint(ubound, bbound)]
                     m = 0
                     r = r - 1
@@ -618,7 +649,21 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
             r = 5000
             while((m < len(metalpoints)) and (r > 0)):
                 dst = distfrom(possiblepoint[0], possiblepoint[1], metalpoints[m][0], metalpoints[m][1])
-                if(dst < 16):
+                xl = min(possiblepoint[0] - mexchk, 0)
+                xm = max(possiblepoint[0] + mexchk, xcoord - 1)
+                yu = min(possiblepoint[1] - mexchk, 0)
+                yl = max(possiblepoint[1] + mexchk, ycoord - 1)
+
+                xs = abs(condensemap[possiblepoint[1]][xm] - condensemap[possiblepoint[1]][xl]) / (2 * mexchk)
+                ys = abs(condensemap[yu][possiblepoint[0]] - condensemap[yl][possiblepoint[0]]) / (2 * mexchk)
+
+                #print("xs: " + str(xs) + " / ys: " + str(ys))
+
+                Skip = False
+                if(xs > mexthresh) or (ys > mexthresh):
+                    Skip = True
+
+                if(dst < 16) or (Skip == True):
                     possiblepoint = [random.randint(lbound, rbound), random.randint(ubound, bbound)]
                     m = 0
                     r = r - 1
@@ -644,7 +689,21 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
             r = 5000
             while((m < len(metalpoints)) and (r > 0)):
                 dst = distfrom(possiblepoint[0], possiblepoint[1], metalpoints[m][0], metalpoints[m][1])
-                if(dst < 16):
+                xl = min(possiblepoint[0] - mexchk, 0)
+                xm = max(possiblepoint[0] + mexchk, xcoord - 1)
+                yu = min(possiblepoint[1] - mexchk, 0)
+                yl = max(possiblepoint[1] + mexchk, ycoord - 1)
+
+                xs = abs(condensemap[possiblepoint[1]][xm] - condensemap[possiblepoint[1]][xl]) / (2 * mexchk)
+                ys = abs(condensemap[yu][possiblepoint[0]] - condensemap[yl][possiblepoint[0]]) / (2 * mexchk)
+
+                #print("xs: " + str(xs) + " / ys: " + str(ys))
+
+                Skip = False
+                if(xs > mexthresh) or (ys > mexthresh):
+                    Skip = True
+
+                if(dst < 16) or (Skip == True):
                     possiblepoint = [random.randint(lbound, rbound), random.randint(ubound, bbound)]
                     m = 0
                     r = r - 1
@@ -734,69 +793,108 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
         n = n + 1
     return pixelarray
 
-def generate_texmap ( genmap, texturepack ):
+def generate_texmap ( genmap, texture_family ):
     texmap = []
+    #pull textures from texture family.
+    pulldir = "textures/families/" + texture_family + "/"
+    #   open texture list
+    textureinfo = open(pulldir + "texturelist.txt", 'r')
+    textureinfo_text = textureinfo.read()
+    textureinfo.close()
+    #   split by '\n'
+    ti_byrow = textureinfo_text.split('\n')
+    texturepack = []
+    infopack = []
+    n = 0
+    while n < len(ti_byrow):
+        commasep = ti_byrow[n].split(',')
+        if(len(commasep) == 3):
+            texturepack.append(commasep[0])
+            infopack.append([int(commasep[1]), int(commasep[2])])
+        n = n + 1
+    
     #expand...
     expanded_heightmap = generate_expandmap( genmap )
     #load textures...
     #   - 0 : lowground (0-20 clean, 21-40 merged)
     #   - 1 : midground (41-60 clean, 61-80 merged)
     #   - 2 : highground (81-100 clean)
-    lowtexar = []
-    lowtexseq = []
-    medtexar = []
-    medtexseq = []
-    higtexar = []
-    higtexseq = []
-    with Image.open(texturepack[0]) as lti:
-        lowtexseq = list(lti.getdata())
-        lti.close()
-    with Image.open(texturepack[1]) as mti:
-        medtexseq = list(mti.getdata())
-        mti.close()
-    with Image.open(texturepack[2]) as hti:
-        higtexseq = list(hti.getdata())
-        hti.close()
-    w = 64
-    h = 64
+    texar = []
+    texseq = []
     n = 0
-    while (n < h):
+    while n < len(texturepack):
+        ts = []
+        with Image.open(pulldir + "/" + texturepack[n]) as tex:
+            ts = list(tex.getdata())
+            tex.close()
+            
+        w = infopack[n][0]
+        h = infopack[n][1]
+
+        ta=[]
         m = 0
-        row = []
-        rowb = []
-        rowc = []
-        while(m < w):
-            row.append(lowtexseq[n * (w) + m])
-            rowb.append(medtexseq[n * w + m])
-            rowc.append(higtexseq[n * w + m])
+        while m < h:
+            l = 0
+            row = []
+            while (l < w):
+                row.append(ts[m * w + l])
+                l = l + 1
+            ta.append(row)
             m = m + 1
-        lowtexar.append(row)
-        medtexar.append(rowb)
-        higtexar.append(rowc)
+        texseq.append(ta)
         n = n + 1
+
     #merge textures...
     total_width = len(expanded_heightmap[0])
     total_height = len(expanded_heightmap)
 
-    def merge_function( tupa, tupb, tupc, height ):
+    def merge_function( x, y, tex, ip, height ):
         #tupa/tupb/tupc tuples from pixels
         r = 0
         g = 0
         b = 0
-        if(height < 50):
-            p = height / 50
+
+        if(len(tex) > 1):
+            key = 0
+            n = len(tex) - 1
+            if(height > (100/n) * key):
+                key = key + 1
+            key = key - 1
+            
+            lw = ip[key][0]
+            lh = ip[key][1]
+            lr = tex[key][y%lh][x%lw][0]
+            lg = tex[key][y%lh][x%lw][1]
+            lb = tex[key][y%lh][x%lw][2]
+
+            rw = ip[key+1][0]
+            rh = ip[key+1][1]
+            rr = tex[key+1][y%rh][x%rw][0]
+            rg = tex[key+1][y%rh][x%rw][1]
+            rb = tex[key+1][y%rh][x%rw][2]
+
+            p = (height - key * 100 / n) / (100 / n)
             q = 1 - p
 
-            r = tupa[0] * q + tupb[0] * p
-            g = tupa[1] * q + tupb[1] * p
-            b = tupa[2] * q + tupb[2] * p
+            r = lr * q + rr * p
+            g = lg * q + rg * p
+            b = lb * q + rb * p
+        elif(len(tex) > 0):
+            #Shouldn't happen, but if there's only one texture, output that texture, merged with heightmap
+            lw = ip[0][0]
+            lh = ip[0][1]
+
+            hmod = 25 + height * 2
+            r = (tex[0][y%lh][x%lw][0] * 0.5 + hmod * 0.5)
+            g = (tex[0][y%lh][x%lw][1] * 0.5 + hmod * 0.5)
+            b = (tex[0][y%lh][x%lw][2] * 0.5 + hmod * 0.5)
         else:
-            p = (height - 50) / 50
-            q = 1 - p
-            
-            r = tupb[0] * q + tupc[1] * p
-            g = tupb[1] * q + tupc[1] * p
-            b = tupb[2] * q + tupc[2] * p
+            #No found texture? (somehow something went very wrong) - just output expanded_heightmap
+            hmod = 25 + height * 2
+
+            r = hmod
+            g = hmod
+            b = hmod
         return (int(r), int(g), int(b))
 
     n = 0
@@ -804,7 +902,7 @@ def generate_texmap ( genmap, texturepack ):
         m = 0
         row = []
         while (m < total_width):
-            merge_pixel = merge_function(lowtexar[n%64][m%64], medtexar[n%64][m%64], higtexar[n%64][m%64], expanded_heightmap[n][m])
+            merge_pixel = merge_function(m, n, texseq, infopack, expanded_heightmap[n][m])
             row.append(merge_pixel)
             m = m + 1
         texmap.append(row)
@@ -889,16 +987,25 @@ def generate_startpositions ( genmap, fliptype, map_properties ):
             n = n + 1
     return start_positions
 
-def main( map_properties ):
-    textures = []
-    textures.append(['flats_bmp/rrock05.bmp', 'flats_bmp/rrock04.bmp', 'flats_bmp/rrock02.bmp'])
-    textures.append(['flats_bmp/mflr8_4.bmp', 'flats_bmp/grass1.bmp', 'flats_bmp/mflr8_3.bmp'])
-    textures.append(['flats_bmp/flat5_6c.bmp', 'flats_bmp/flat5_6b.bmp', 'flats_bmp/flat5_6.bmp'])
-    textures.append(['flats_bmp/floor4_8.bmp', 'flats_bmp/floor5_1.bmp', 'flats_bmp/floor5_2.bmp'])
+def GetTextureFamilies():
+    retval = []
+    textfam = "textures/families/"
 
-    texturepack = textures[random.randint(0, len(textures)-1)]
+    scanned = os.scandir(textfam)
+
+    for objs in scanned:
+        if objs.is_dir():
+            retval.append(objs.name)
+    return retval
+    
+
+def main( map_properties ):
+    texture_families = []
+    texture_families = GetTextureFamilies()
     
     random.seed(a=map_properties["seed"], version=2)
+    
+    texture_picked = random.choice(texture_families)
     
     genmap = []
 
@@ -909,7 +1016,7 @@ def main( map_properties ):
     os.makedirs(dirname+'maps/', exist_ok=True)
     
     print("Map: " + mapname)
-    print("\tTextures Used: " + str(texturepack))
+    print("\tTextures Used: " + str(texture_picked))
 
     genmap, fliptype = generate_map(map_properties)
     start_positions = generate_startpositions(genmap, fliptype, map_properties)
@@ -942,7 +1049,7 @@ def main( map_properties ):
 
     metmap_filename = dirname + mapname + '_metal.bmp'
     #TextureMap
-    texmap = generate_texmap(genmap, texturepack)
+    texmap = generate_texmap(genmap, texture_picked)
 
     texmap_img = Image.new('RGB', (map_properties["mapsizex"] * 512, map_properties["mapsizey"] * 512), 'black')
     texmap_img_pixels = texmap_img.load()
@@ -985,7 +1092,33 @@ def main( map_properties ):
                     "[MINHEIGHT]": minheight,
                     "[MAXHEIGHT]": maxheight,
                     "[MINWIND]": minwind,
-                    "[MAXWIND]": maxwind}
+                    "[MAXWIND]": maxwind,
+                    "[FOGR]": 0.8,
+                    "[FOGG]": 0.8,
+                    "[FOGB]": 0.8,
+                    "[SKYR]": 0.8,
+                    "[SKYG]": 0.8,
+                    "[SKYB]": 0.8,
+                    "[WATR]": 0.67,
+                    "[WATG]": 0.8,
+                    "[WATB]": 1.0}
+
+    ti_text = ""
+    try:
+        texture_info = open("textures/families/" + texture_picked + "/mapinfo.txt", 'r')
+        ti_text = texture_info.read()
+        texture_info.close()
+    except:
+        print("texture mapinfo.txt not found. proceeding with blank mapinfo.txt")
+        ti_text = ""
+
+    ti_text_split = ti_text.split('\n')
+
+    for n in ti_text_split:
+        ti_text_split_split = n.split(',')
+        if(len(ti_text_split_split) == 2):
+            mapinfo_vars[ti_text_split_split[0]] = ti_text_split_split[1]
+            print("Replaced " + ti_text_split_split[0] + " value with " + ti_text_split_split[1])
 
     for key in mapinfo_vars:
         mapinfo_template_text = mapinfo_template_text.replace(key, str(mapinfo_vars[key]))
@@ -1052,7 +1185,7 @@ if __name__ == "__main__":
     map_properties = {
         "mapsizex": 12,
         "mapsizey": 12,
-        "seed": 13122601834,
+        "seed": 54321,
         "numplayers": 8
         }
     main(map_properties)
