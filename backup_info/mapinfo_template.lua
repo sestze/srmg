@@ -75,25 +75,25 @@ local mapinfo = {
 		fogEnd       = 1.0,
 
 		cloudColor = {
-		  0.89999998,
-		  0.89999998,
-		  0.89999998,
+		  	0.89999998,
+		  	0.89999998,
+		  	0.89999998,
 		},
-    fogColor = {
-      0.80000001,
-      0.80000001,
-      0.5,
-    },
-    skyColor = {
-      0.42879999,
-      0.58016002,
-      0.63999999,
-    },
+ 		fogColor = {
+	        	[FOGR],
+      			[FOGG],
+      			[FOGB],
+    		},
+    		skyColor = {
+      			[SKYR],
+      			[SKYG],
+      			[SKYB],
+    		},
 		sunColor = {
-		  1,
-		  0.92,
-		  0.78,
-    },
+			1,
+		  	0.92,
+		  	0.78,
+    		},
 		skyDir       = {0.0, 0.0, -1.0},
 		skyBox       = "cloudySea.dds",
 
@@ -157,7 +157,7 @@ local mapinfo = {
 		specularFactor = 1.4,
 		specularPower  = 40.0,
 
-		surfacecolor  = { 0.67, 0.8, 1.0 }, --color of the water texture
+		surfacecolor  = { [WATR], [WATG], [WATB] }, --color of the water texture
 		surfaceAlpha  = 0.02,
 		diffuseColor  = {0.0, 0.0, 0.0},
 		specularColor = {0.5, 0.5, 0.5},

@@ -33,7 +33,7 @@ import os
 import subprocess
 import py7zr
 
-from typing import BinaryIO, List, Tuple
+#from typing import BinaryIO, List, Tuple
 from PIL import Image
 
 def generate_heightmap(genmap):
@@ -138,15 +138,24 @@ def generate_map (map_properties):
     #necessary to prevent errors from edge values.
     xdivval = int(width/maxflats)
     ydivval = int(height/maxflats)
-    
-    n = 0
+
+    #it's harder to mirror if we're starting at 0,0 and using non-flush divs
+    starth = int(height/2)
+    while(starth > ydivval):
+        starth = starth - ydivval
+    startw = int(width/2)
+    while(startw > xdivval):
+        startw = startw - xdivval
+
+    print("startw: " + str(startw) + " starth: " + str(starth))    
+    n = starth
     while n < height:
-        m = 0
+        m = startw
         row = []
         while m < width:
             row.append([m, n, blotorder[0]])
             m = m + xdivval
-        row.append([width, n, blotorder[0]])
+        #row.append([width, n, blotorder[0]])
         coords.append(row)
         n = n + ydivval
 
@@ -154,14 +163,14 @@ def generate_map (map_properties):
     while n < 3:
         m = 0
         while m < blots:
-            xc = int(random.randint(0, int(width/2)) / xdivval) * xdivval
-            yc = int(random.randint(0, height) / ydivval) * ydivval
+            xc = startw + int(random.randint(0, int(width/2)) / xdivval) * xdivval
+            yc = starth + int(random.randint(0, height) / ydivval) * ydivval
             incby = 1
             if(fliptype == 1):
-                xc = random.randint(0, width)
-                yc = random.randint(0, int(height / 2))
+                xc = startw + int(random.randint(0, width) / xdivval) * xdivval
+                yc = starth + int(random.randint(0, int(height / 2)) / ydivval) * ydivval
             if(fliptype == 2):
-                yc = random.randint(0, int(height / 2))
+                yc = starth + int(random.randint(0, int(height / 2)) / ydivval) * ydivval
                 incby = 2
 
             xs = random.randint(blotleast, blotmost)
@@ -310,7 +319,7 @@ def generate_map (map_properties):
         m = 0
         oskip = False
         if((fliptype == 1) or (fliptype == 2)):
-            if (n >= int((len(coords) - 1)/2) + 1):
+            if (n >= int((len(coords) - 1)/2)):
                 q = n
                 while q < len(coords):
                     p = 0
@@ -329,16 +338,16 @@ def generate_map (map_properties):
             while m < len(coords[0]):
                 skip = False
                 if((fliptype == 0) or (fliptype == 2)):
-                    if (m >= int((len(coords[0])-1) / 2) + 1):
+                    if (m >= int((len(coords[0])-1) / 2)):
                         q = m
-                        while q < len(coords[0]):
-                            xvar = coords[n][q][0]
-                            yvar = coords[n][q][1]
-                            zvar = coords[n][m][2]
+                        while m < len(coords[0]):
+                            xvar = coords[n][m][0]
+                            yvar = coords[n][m][1]
+                            zvar = coords[n][q][2]
                             #row.append([xvar, yvar, zvar])
-                            coords[n][q] = [xvar, yvar, zvar]
-                            q = q + 1
-                            m = m - 1
+                            coords[n][m] = [xvar, yvar, zvar]
+                            q = q - 1
+                            m = m + 1
                         skip = True
                 if(skip == False):
     ##                if((n == 0) and (m == 0)):
@@ -360,6 +369,19 @@ def generate_map (map_properties):
             n = n + 1
         else:
             n = len(coords)
+
+    #this fixes the right side - not sure why
+    n = int(len(coords)/2)-1
+    m = int(len(coords[n])/2)
+    q = m
+    while(m < len(coords[n])):
+        xvar = coords[n][m][0]
+        yvar = coords[n][m][1]
+        zvar = coords[n][q][2]
+        
+        coords[n][m] = [xvar, yvar, zvar]
+        m = m + 1
+        q = q - 1
 
     combinecoord = coords.copy()
 
@@ -389,15 +411,55 @@ def generate_map (map_properties):
             n = n +1
         totval = totval / cnt
         return totval
-
+        
     #blurring
     n = 0
     while (n < len(coords)):
         m = 0
         while (m < len(coords[n])):
             combinecoord[n][m][2] = AverageCoordsInCircle(m, n, coords, blurradius)
+            #combinecoord[n][m][2] = coords[n][m][2]
             m = m + 1
         n = n + 1
+
+    #basically, rebuild the post-blur combinecoord to give it edge values. mostly to make sure the interpolation function doesn't shit a brick.
+    #funnily enough, didn't make a difference.
+    combinecoord2 = []
+    row1 = []
+    row1.append([0, 0, combinecoord[0][0][2]])
+    n = 0
+    m = 0
+
+    while (m < len(combinecoord[0])):
+        row1.append([combinecoord[0][m][0], 0, combinecoord[0][m][2]])
+        m = m + 1
+
+    row1.append([width, 0, combinecoord[0][m-1][2]])
+    combinecoord2.append(row1)
+    n = 0
+    while(n < len(combinecoord)):
+        m = 0
+        row = []
+        row.append([0, combinecoord[n][m][1], combinecoord[n][m][2]])
+        while(m < len(combinecoord[n])):
+            row.append([combinecoord[n][m][0], combinecoord[n][m][1], combinecoord[n][m][2]])
+            m = m + 1
+        m = m - 1
+        row.append([width, combinecoord[n][m][1], combinecoord[n][m][2]])
+        combinecoord2.append(row)
+        n = n + 1
+
+    n = n - 1
+    m = 0
+    rowlast = []
+    rowlast.append([0, height, combinecoord[n][m][2]])
+    while m < len(combinecoord[n]):
+        rowlast.append([combinecoord[n][m][0], height, combinecoord[n][m][2]])
+        m = m + 1
+    m = m - 1
+    rowlast.append([width, height, combinecoord[n][m][2]])
+
+    combinecoord2.append(rowlast)
 
     #print(str(combinecoord))
 
@@ -442,7 +504,12 @@ def generate_map (map_properties):
         #steep = -1 * steepmultiplier / ((xt - xo))#
         #retval = yo + (yt - yo) * (1 / (1 + pow(math.e, steep * (val - (xo + xt)/2))))
         #retval = int(retval)
-        retval = ((yt - yo) / (xt - xo)) * (val - xo) + yo
+        try:
+            retval = ((yt - yo) / (xt - xo)) * (val - xo) + yo
+        except:
+            print("point of failure")
+            print("cubic spline function: " + str(val) + ", " + str(xo) + ", " + str(yo) + ", " + str(xt) + ", " + str(yt))
+            q = input("pause...")
         #retval = retval
         if(dbg != 0):
             print("Output: " + str(retval))
@@ -462,23 +529,23 @@ def generate_map (map_properties):
             keyx = 0
             keyy = 0
 
-            while((combinecoord[keyy][keyx][0] <= m) and (keyx < len(combinecoord[0]) - 1)):
+            while((combinecoord2[keyy][keyx][0] <= m) and (keyx < len(combinecoord2[0]) - 1)):
                 keyx = keyx + 1
 
-            while((combinecoord[keyy][keyx][1] <= n) and (keyy < len(combinecoord) - 1)):
+            while((combinecoord2[keyy][keyx][1] <= n) and (keyy < len(combinecoord2) - 1)):
                 keyy = keyy + 1
             #logi - top
-            logit = logi(m, combinecoord[keyy - 1][keyx - 1][0], combinecoord[keyy - 1][keyx - 1][2], combinecoord[keyy - 1][keyx][0], combinecoord[keyy - 1][keyx][2])
+            logit = logi(m, combinecoord2[keyy - 1][keyx - 1][0], combinecoord2[keyy - 1][keyx - 1][2], combinecoord2[keyy - 1][keyx][0], combinecoord2[keyy - 1][keyx][2])
             #logi - bot
-            logib = logi(m, combinecoord[keyy][keyx - 1][0], combinecoord[keyy][keyx - 1][2], combinecoord[keyy][keyx][0], combinecoord[keyy][keyx][2])
+            logib = logi(m, combinecoord2[keyy][keyx - 1][0], combinecoord2[keyy][keyx - 1][2], combinecoord2[keyy][keyx][0], combinecoord2[keyy][keyx][2])
             #logi - left
-            logil = logi(n, combinecoord[keyy - 1][keyx - 1][1], combinecoord[keyy - 1][keyx - 1][2], combinecoord[keyy][keyx - 1][1], combinecoord[keyy][keyx - 1][2])
+            logil = logi(n, combinecoord2[keyy - 1][keyx - 1][1], combinecoord2[keyy - 1][keyx - 1][2], combinecoord2[keyy][keyx - 1][1], combinecoord2[keyy][keyx - 1][2])
             #logi - right
-            logir = logi(n, combinecoord[keyy - 1][keyx][1], combinecoord[keyy - 1][keyx][2], combinecoord[keyy][keyx][1], combinecoord[keyy][keyx][2])
+            logir = logi(n, combinecoord2[keyy - 1][keyx][1], combinecoord2[keyy - 1][keyx][2], combinecoord2[keyy][keyx][1], combinecoord2[keyy][keyx][2])
             #logi - horiz
-            logih = logi(n, combinecoord[keyy - 1][keyx][1], logit, combinecoord[keyy][keyx][1], logib)
+            logih = logi(n, combinecoord2[keyy - 1][keyx][1], logit, combinecoord2[keyy][keyx][1], logib)
             #logi - verti
-            logiv = logi(m, combinecoord[keyy][keyx - 1][0], logil, combinecoord[keyy][keyx][0], logir)
+            logiv = logi(m, combinecoord2[keyy][keyx - 1][0], logil, combinecoord2[keyy][keyx][0], logir)
             #logi - total
             #logitotal = int((logih + logiv) / 2)
             logitotal = (logih + logiv) / 2
@@ -738,12 +805,12 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
     while n < len(metalpix):
         ditto = [metalpix[n][0], metalpix[n][1]]
         if(fliptype == 0):
-            ditto[0] = xcoord - metalpix[n][0]
+            ditto[0] = (xcoord - 1) - metalpix[n][0]
         elif(fliptype == 1):
-            ditto[1] = ycoord - metalpix[n][1]
+            ditto[1] = (ycoord - 1) - metalpix[n][1]
         elif(fliptype == 2):
-            ditto[0] = xcoord - metalpix[n][0]
-            ditto[1] = ycoord - metalpix[n][1]
+            ditto[0] = (xcoord - 1) - metalpix[n][0]
+            ditto[1] = (ycoord - 1) - metalpix[n][1]
         mirrorpix.append(metalpix[n])
         mirrorpix.append(ditto)
         n = n + 1
@@ -923,7 +990,7 @@ def generate_startpositions ( genmap, fliptype, map_properties ):
 
     backline = min(4, map_properties["numplayers"])
     frontline = map_properties["numplayers"] - backline
-
+    choice = 0
     if(fliptype == 0):
         xset = min(int(xcoord / (map_properties["mapsizex"] * 2)), int(xcoord / 16))
         xset2 = xcoord - xset
@@ -985,7 +1052,7 @@ def generate_startpositions ( genmap, fliptype, map_properties ):
             start_positions.append([xset, yset])
             #bottom right/top right
             n = n + 1
-    return start_positions
+    return start_positions, choice
 
 def GetTextureFamilies():
     retval = []
@@ -1019,7 +1086,7 @@ def main( map_properties ):
     print("\tTextures Used: " + str(texture_picked))
 
     genmap, fliptype = generate_map(map_properties)
-    start_positions = generate_startpositions(genmap, fliptype, map_properties)
+    start_positions, choice = generate_startpositions(genmap, fliptype, map_properties)
 
     #Heightmap
     heightmap_img = generate_heightmap(genmap)
@@ -1103,6 +1170,7 @@ def main( map_properties ):
                     "[WATG]": 0.8,
                     "[WATB]": 1.0}
 
+    #Set texture family based map settings.
     ti_text = ""
     try:
         texture_info = open("textures/families/" + texture_picked + "/mapinfo.txt", 'r')
@@ -1129,6 +1197,76 @@ def main( map_properties ):
 
     print("Written to: " + dirname + "mapinfo.lua")
 
+    #creating map_startboxes.lua
+
+    msb_file = open('backup_info/map_startboxes_template.lua', 'r')
+    msb_file_text = msb_file.read()
+    msb_file.close()
+
+    #defaults to horizontal
+    msb_config = {"[STARTPOINT-1-TL]": "{0, 0}",
+                  "[STARTPOINT-1-TR]": "{" + str(int(map_properties["mapsizex"] * 512/8)) + ", 0}",
+                  "[STARTPOINT-1-BL]": "{0, " + str(int(map_properties["mapsizey"] * 512)) + "}",
+                  "[STARTPOINT-1-BR]": "{" + str(int(map_properties["mapsizex"] * 512/8)) + ", " + str(int(map_properties["mapsizey"] * 512)) + "}",
+                  "[STARTPOINT-1-NAME]": "Left Side",
+                  "[STARTPOINT-1-SHORT]": "LS",
+                  "[STARTPOINT-2-TL]": "{" + str(int(map_properties["mapsizex"] * 7 * 512/8)) + ", 0}",
+                  "[STARTPOINT-2-TR]": "{" + str(int(map_properties["mapsizex"] * 512)) + ", 0}",
+                  "[STARTPOINT-2-BL]": "{" + str(int(map_properties["mapsizex"] * 7 * 512/8)) + ", " + str(int(map_properties["mapsizey"] * 512)) + "}",
+                  "[STARTPOINT-2-BR]": "{" + str(int(map_properties["mapsizex"] * 512)) + ", " + str(int(map_properties["mapsizey"] * 512)) + "}",
+                  "[STARTPOINT-2-NAME]": "Right Side",
+                  "[STARTPOINT-2-NAME]": "RS"}
+
+    if(fliptype == 1):      #vertical
+        msb_config = {"[STARTPOINT-1-TL]": "{0, 0}",
+                      "[STARTPOINT-1-TR]": "{" + str(int(map_properties["mapsizex"] * 512)) + ", 0}",
+                      "[STARTPOINT-1-BL]": "{0, " + str(int(map_properties["mapsizey"] * 512/8)) + "}",
+                      "[STARTPOINT-1-BR]": "{" + str(int(map_properties["mapsizex"] * 512)) + ", " + str(int(map_properties["mapsizey"] * 512/8)) + "}",
+                      "[STARTPOINT-1-NAME]": "Top Side",
+                      "[STARTPOINT-1-SHORT]": "TS",
+                      "[STARTPOINT-2-TL]": "{0, " + str(int(map_properties["mapsizey"] * 7 * 512/8)) + "}",
+                      "[STARTPOINT-2-TR]": "{" + str(int(map_properties["mapsizex"] * 512)) + ", " + str(int(map_properties["mapsizey"] * 7 * 512/8)) + "}",
+                      "[STARTPOINT-2-BL]": "{0, " + str(int(map_properties["mapsizey"] * 512)) + "}",
+                      "[STARTPOINT-2-BR]": "{" + str(int(map_properties["mapsizex"] * 512)) + ", " + str(int(map_properties["mapsizey"] * 512)) + "}",
+                      "[STARTPOINT-2-NAME]": "Bottom Side",
+                      "[STARTPOINT-2-NAME]": "BS"}
+    if(fliptype == 2):      #quads
+        if(choice == 0):    # Top left/bottom Right
+            msb_config = {"[STARTPOINT-1-TL]": "{0, 0}",
+                      "[STARTPOINT-1-TR]": "{" + str(int(map_properties["mapsizex"] * 512/8)) + ", 0}",
+                      "[STARTPOINT-1-BL]": "{0, " + str(int(map_properties["mapsizey"] * 512/8)) + "}",
+                      "[STARTPOINT-1-BR]": "{" + str(int(map_properties["mapsizex"] * 512/8)) + ", " + str(int(map_properties["mapsizey"] * 512/8)) + "}",
+                      "[STARTPOINT-1-NAME]": "Top Left",
+                      "[STARTPOINT-1-SHORT]": "TL",
+                      "[STARTPOINT-2-TL]": "{" + str(int(map_properties["mapsizex"] * 7 * 512/8)) + ", " + str(int(map_properties["mapsizey"] * 7 * 512/8)) + "}",
+                      "[STARTPOINT-2-TR]": "{" + str(int(map_properties["mapsizex"] * 512)) + ", " + str(int(map_properties["mapsizey"] * 7 * 512/8)) + "}",
+                      "[STARTPOINT-2-BL]": "{" + str(int(map_properties["mapsizex"] * 7 * 512/8)) + ", " + str(int(map_properties["mapsizey"] * 512)) + "}",
+                      "[STARTPOINT-2-BR]": "{" + str(int(map_properties["mapsizex"] * 512)) + ", " + str(int(map_properties["mapsizey"] * 512)) + "}",
+                      "[STARTPOINT-2-NAME]": "Bottom Right",
+                      "[STARTPOINT-2-NAME]": "BR"}
+        if(choice == 1):    # Bottom left/top right
+            msb_config = {"[STARTPOINT-1-TL]": "{0, " + str(int(map_properties["mapsizey"] * 7 * 512/8)) + "}",
+                      "[STARTPOINT-1-TR]": "{" + str(int(map_properties["mapsizex"] * 512/8)) + ", " + str(int(map_properties["mapsizey"] * 7 * 512/8)) + "}",
+                      "[STARTPOINT-1-BL]": "{0, " + str(int(map_properties["mapsizey"] * 512)) + "}",
+                      "[STARTPOINT-1-BR]": "{" + str(int(map_properties["mapsizex"] * 512/8)) + ", " + str(int(map_properties["mapsizey"] * 512)) + "}",
+                      "[STARTPOINT-1-NAME]": "Bottom Left",
+                      "[STARTPOINT-1-SHORT]": "BL",
+                      "[STARTPOINT-2-TL]": "{" + str(int(map_properties["mapsizex"] * 7 * 512/8)) + ", 0}",
+                      "[STARTPOINT-2-TR]": "{" + str(int(map_properties["mapsizex"] * 512)) + ", 0}",
+                      "[STARTPOINT-2-BL]": "{" + str(int(map_properties["mapsizex"] * 7 * 512/8)) + ", " + str(int(map_properties["mapsizey"] * 512)) + "}",
+                      "[STARTPOINT-2-BR]": "{" + str(int(map_properties["mapsizex"] * 512)) + ", " + str(int(map_properties["mapsizey"] * 512)) + "}",
+                      "[STARTPOINT-2-NAME]": "Top Right",
+                      "[STARTPOINT-2-NAME]": "TR"}
+
+    for key in msb_config:
+        msb_file_text = msb_file_text.replace(key, str(msb_config[key]))
+
+    os.makedirs(dirname + 'mapconfig', exist_ok=True)
+
+    msb_out = open(dirname + 'mapconfig/' + 'map_startboxes.lua', 'w')
+    msb_out.write(msb_file_text)
+    msb_out.close()
+
     #mapconv execution
     def QuoteWrap ( istr ):
     #    ostr = "\'" + istr + "\'"
@@ -1154,7 +1292,8 @@ def main( map_properties ):
     tm_fn = mapname + "_texture.bmp"
     hm_fn = mapname + "_height.png"
     mm_fn = mapname + "_metal.bmp"
-    listfile_text = "mapinfo.lua\n" + mf_fn + "\n" + mf_fn2 + "\n" + tm_fn + "\n" + hm_fn + "\n" + mm_fn
+    msb_fn = "mapconfig/map_startboxes.lua"
+    listfile_text = "mapinfo.lua\n" + mf_fn + "\n" + mf_fn2 + "\n" + tm_fn + "\n" + hm_fn + "\n" + mm_fn + "\n" + msb_fn
     listfile.write(listfile_text)
     listfile.close()
     
@@ -1169,6 +1308,7 @@ def main( map_properties ):
         archive.write(tm_fn)
         archive.write(hm_fn)
         archive.write(mm_fn)
+        archive.write(msb_fn)
 
     #backup batch file creation for 7z if py7zr doesn't work.
     #batfile = open('zipit.bat', 'w')
@@ -1185,7 +1325,7 @@ if __name__ == "__main__":
     map_properties = {
         "mapsizex": 12,
         "mapsizey": 12,
-        "seed": 54321,
+        "seed": 333666999,
         "numplayers": 8
         }
     main(map_properties)
