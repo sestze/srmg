@@ -989,7 +989,7 @@ def generate_texmap ( genmap, texture_family, mult, minh ):
     n = 0
     while n < len(texturepack):
         ts = []
-        with Image.open(pulldir + "/" + texturepack[n]) as tex:
+        with Image.open(pulldir + texturepack[n]) as tex:
             ts = list(tex.getdata())
             tex.close()
             
@@ -1007,6 +1007,7 @@ def generate_texmap ( genmap, texture_family, mult, minh ):
             ta.append(row)
             m = m + 1
         texseq.append(ta)
+        #print("added: " + pulldir + texturepack[n])
         n = n + 1
 
     #merge textures...
@@ -1022,7 +1023,7 @@ def generate_texmap ( genmap, texture_family, mult, minh ):
         if(len(tex) > 1):
             key = 0
             n = len(tex) - 1
-            if(height > (100/n) * key):
+            while(height > ((100/n) * key)):
                 key = key + 1
             key = key - 1
             
@@ -1038,12 +1039,13 @@ def generate_texmap ( genmap, texture_family, mult, minh ):
             rg = tex[key+1][y%rh][x%rw][1]
             rb = tex[key+1][y%rh][x%rw][2]
 
-            p = (height - key * 100 / n) / (100 / n)
+            p = n * height / 100 - key
             q = 1 - p
 
             r = lr * q + rr * p
             g = lg * q + rg * p
             b = lb * q + rb * p
+            #print("height: " + str(height) + "/ key: " + str(key) + "/ p: " + str(p))
         elif(len(tex) > 0):
             #Shouldn't happen, but if there's only one texture, output that texture, merged with heightmap
             lw = ip[0][0]
@@ -1318,9 +1320,10 @@ def main( map_properties ):
             mapinfo_vars[ti_text_split_split[0]] = ti_text_split_split[1]
             print("Replaced " + ti_text_split_split[0] + " value with " + ti_text_split_split[1])
 
-    newheight = int((int(mapinfo_vars["[MAXHEIGHT]"]) + minh) / mult)
-    mapinfo_vars["[MAXHEIGHT]"] = newheight
+    mapinfo_vars["[MAXHEIGHT]"] = int(int(mapinfo_vars["[MAXHEIGHT]"]) + minh) / mult
+    mapinfo_vars["[MINHEIGHT]"] = int(int(mapinfo_vars["[MINHEIGHT]"]) + minh) / mult
     print("Updated [MAXHEIGHT] to: " + str(mapinfo_vars["[MAXHEIGHT]"]))
+    print("Updated [MINHEIGHT] to: " + str(mapinfo_vars["[MINHEIGHT]"]))
 
     for key in mapinfo_vars:
         mapinfo_template_text = mapinfo_template_text.replace(key, str(mapinfo_vars[key]))
@@ -1444,22 +1447,14 @@ def main( map_properties ):
         archive.write(mm_fn)
         archive.write(msb_fn)
 
-    #backup batch file creation for 7z if py7zr doesn't work.
-    #batfile = open('zipit.bat', 'w')
-    #battxt = "7z.exe a -t7z " + archive_filename + " @listfile.txt"
-    #batfile.write(battxt)
-    #batfile.close()
-    
-    #7z a -t7z archive_filename @listfile.txt
-    #Sevz_location = 'C:/Program Files/7-Zip/7z.exe'
-    #subprocess.run(dirname+'zipit.bat', shell=True)
+    os.chdir(curdir)
     
 
 if __name__ == "__main__":
     map_properties = {
         "mapsizex": 12,
         "mapsizey": 12,
-        "seed": 333666999,
+        "seed": 999876665433321000,
         "numplayers": 8,
         "use_prefabs": True
         }
