@@ -72,8 +72,6 @@ def get_texlist_from_infofile ( info ):
             texlist.append(obj)
     return texlist
 
-#TODO
-
 def get_prefab_object ( family, info, scalar, severity ):
     prefab = []
     pixeldata = []
@@ -109,8 +107,6 @@ def get_prefab_object ( family, info, scalar, severity ):
         n = n + 1
     
     return prefab
-
-#TODO
 
 def inbounds( val, l, u ):
     if val < l:
@@ -209,14 +205,34 @@ def generate_map_using_prefabs (map_properties):
     prefab_info = get_prefab_infofile(chosen_family)
     #add in prefabs
     prefab_number = random.randint(2, 8) * 4
-    prefab_overall_scalar_low = random.randint(1, 4) / 4
-    prefab_overall_scalar_high = prefab_overall_scalar_low * 2
+    if(fliptype == 2):
+        prefab_number = prefab_number // 2
+    prefab_overall_scalar_low = random.randint(3, 6) / 4
+    prefab_overall_scalar_high = prefab_overall_scalar_low * random.randint(3, 5) / 2
     prefab_severity = random.randint(1, 3) / 2
 
     print("\tprefab_number: " + str(prefab_number))
     print("\tprefab_overall_scalar_low: " + str(prefab_overall_scalar_low))
     print("\tprefab_overall_scalar_high: " + str(prefab_overall_scalar_high))
     print("\tprefab_severity: " + str(prefab_severity))
+
+    def IsBetween( val, l, u ):
+        if(val < l) and (val > u):
+            return True
+        return False
+
+    def CheckDeadZone( x, y, w, h, fliptype ):
+        if(fliptype == 0):
+            if(IsBetween(x, 0, w / 8)):
+                return True
+        if(fliptype == 1):
+            if(IsBetween(y, 0, h / 8)):
+                return True
+        if(fliptype == 2):
+            dst = pow(pow(x, 2) + pow(y, 2), 0.5)
+            if(IsBetween(dst, 0, (w + h) / 2)):
+                return True
+        return False
 
     n = 0
     while n < prefab_number:
@@ -236,6 +252,10 @@ def generate_map_using_prefabs (map_properties):
 
         xplace = random.randint(-1 * pfo_w // 2, int((width / divx) - pfo_w / 2))
         yplace = random.randint(-1 * pfo_h // 2, int((height / divy) - pfo_w / 2))
+
+        while(CheckDeadZone(xplace, yplace, width, height, fliptype)):
+            xplace = random.randint(-1 * pfo_w // 2, int((width / divx) - pfo_w / 2))
+            yplace = random.randint(-1 * pfo_h // 2, int((height / divy) - pfo_w / 2))
 
         genmap = place_prefab(genmap, prefab_object, xplace, yplace)
 
@@ -268,6 +288,42 @@ def generate_map_using_prefabs (map_properties):
                 m = m + 1
             n = n + 1
 
+    #blur based on fliptype to make edges a bit nicer
+    blurrad = 10 #blurs all pix around 20 units of the pixel
+
+    def AverageCoordsInCircle(keyx, keyy, coords, blurradius):
+        boundy = blurradius
+        boundx = blurradius
+        n = keyy - boundy
+        totval = 0
+        cnt = 0
+        while (n < (keyy + boundy)):
+            m = keyx - boundx
+            while (m < (keyx + boundx)):
+                distval = 0
+                hgval = 0
+                nux = clamp(m, 0, len(coords[0]) - 1)
+                nuy = clamp(n, 0, len(coords) - 1)
+                distval = pow(pow(keyx - m, 2) + pow(keyy - n, 2), 0.5)
+                hgval = coords[nuy][nux]
+                if(distval <= blurradius):
+                    totval = totval + hgval
+                    cnt = cnt + 1
+                m = m + 1
+            n = n + 1
+        totval = totval / cnt
+        return totval
+    print("blurring")
+    n = 0
+    while(n < height):
+        m = 0
+        while (m < width):
+            genmap[n][m] = AverageCoordsInCircle(m, n, genmap, blurrad)
+            m = m + 1
+        n = n + 1
+
+    print("prefab generation finished")
+
     return genmap, fliptype
 
 if __name__ == "__main__":
@@ -282,3 +338,4 @@ if __name__ == "__main__":
         }
     genmap = generate_map_using_prefabs(map_properties)
     #print(str(genmap))
+    print("finished")
