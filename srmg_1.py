@@ -5,8 +5,9 @@
 #   - Generates a heightmap as a 16bit greyscale png
 #   - Generates a metalmap as an 8bit rgb bmp
 #   - Generates a texmap as an 8bit rgb bmp
-#       - Would be nice if I could make this not 64x64 textures only
 #   - Generates the mapinfo.lua file
+#   - Generates the mapconfig/map_startboxes.lua file
+#       - Doesn't currently work (at least, not as far as I can tell)
 #   - Runs map converter, doing a full conversion of the map
 #   - Runs 7zip, putting all the requisite bits of the map into a mapfile.
 
@@ -33,10 +34,12 @@ import os
 import subprocess
 import py7zr
 
+import prefab_generation.prefab_generation
+
 #from typing import BinaryIO, List, Tuple
 from PIL import Image
 
-def generate_heightmap(genmap):
+def generate_heightmap(genmap, mult, minh):
     out = []
     # here's where we'd have to take the genmap and turn it into pixels.
     # (Number) * 2 + 25 is the pixel value for RGB.
@@ -47,12 +50,112 @@ def generate_heightmap(genmap):
         m = 0
         row = []
         while m < width:
-            cellval = genmap[n][m]
+            cellval = (genmap[n][m] - minh) * mult
             row.append(int(max(min((cellval*2 + 25)*256, 256*200), 25*256)))
             m = m + 1
         out.append(row)
         n = n + 1
     return out
+
+def generate_map_using_prefabs (map_properties):
+    #set up some variables
+    width = int(map_properties["mapsizex"]) * 64 + 1
+    height = int(map_properties["mapsizey"]) * 64 + 1
+    genmap = []
+
+    startheight = random.randint(0, 10) * 10
+    endheight = random.randint(0, 10) * 10
+    
+    fliptype = random.randint(0, 2)
+    if(width > height):
+        fliptype = random.choice([0, 2])
+    if(height > width):
+        fliptype = random.choice([1, 2])
+
+    FlipName = ["Horizontal", "Vertical", "Quad"]
+
+    print("Map Statistics: ")
+    print("\tSeed: " + str(map_properties["seed"]))
+    print("\twidth: " + str(map_properties["mapsizex"]))
+    print("\theight: " + str(map_properties["mapsizey"]))
+    print("\tstartheight: " + str(startheight))
+    print("\tendheight: " + str(endheight))
+
+    #build the basic map:
+    #cubic spline for edges
+    def cubic(val, xo, yo, xt, yt, dbg=0):
+        if(dbg != 0):
+            print("cubic spline function: " + str(val) + ", " + str(xo) + ", " + str(yo) + ", " + str(xt) + ", " + str(yt))
+        A = (-2 * (yt - yo)) / pow((xt - xo), 3)
+        B = 3 * (yt - yo) / pow((xt - xo), 2)
+        C = 0
+        D = yo
+        xin = val - xo
+
+        retval = A * pow(xin, 3) + B * pow(xin, 2) + C * xin + D
+        if(dbg != 0):
+            print("Output: " + str(retval))
+        return retval
+
+    def clamp(val, l, u):
+        if l > val:
+            return l
+        if u < val:
+            return u
+        return val
+
+    n = 0
+    while n < height:
+        m = 0
+        row = []
+        while m < width:
+            inval = clamp(m, 1/8 * width, 3/8 * width)
+            height = cubic(inval, 1/8 * width, startheight, 3/8 * width, endheight) #defaults to horizontal fliptype
+            if(fliptype == 1):
+                inval = clamp(n, 1/8 * height, 3/8 * height)
+                height = cubic(inval, 1/8 * height, startheight, 3/8 * height, endheight)
+            if(fliptype == 2):
+                dst = pow(pow(n,2) + pow(m,2), 0.5)
+                inval = clamp(dst, 1/8 * (width + height) / 2, 3/8 * (width + height) / 2)
+                height = cubic(inval, 1/8 * (width + height) / 2, startheight, 3/8 * (width + height) / 2, endheight)
+            row.append(height)
+            m = m + 1
+        genmap.append(row)
+        n = n + 1
+
+    #load prefabs
+        
+    #add in prefabs
+
+    #flip the map
+    if(fliptype == 0):
+        n = 0
+        while n < height:
+            m = 0
+            while m < (width / 2):
+                genmap[n][(width - 1) - m] = genmap[n][m]
+                m = m + 1
+            n = n + 1
+    if(fliptype == 1):
+        n = 0
+        while n < (height / 2):
+            m = 0
+            while m < width:
+                genmap[(height - 1) - n][m] = genmap[n][m]
+                m = m + 1
+            n = n + 1
+    if(fliptype == 2):
+        n = 0
+        while n < (height / 2):
+            m = 0
+            while m < (width / 2):
+                genmap[(height - 1) - n][m] = genmap[n][m]
+                genmap[n][(width - 1) - m] = genmap[n][m]
+                genmap[(height - 1) - n][(width - 1) - m] = genmap[n][m]
+                m = m + 1
+            n = n + 1
+
+    return genmap, fliptype
 
 def generate_map (map_properties):
     #blots didn't work, trying something simpler than splines but more complicated than blots
@@ -500,16 +603,11 @@ def generate_map (map_properties):
     #linear interpolation
     def logi(val, xo, yo, xt, yt, dbg=0):
         if(dbg != 0):
-            print("cubic spline function: " + str(val) + ", " + str(xo) + ", " + str(yo) + ", " + str(xt) + ", " + str(yt))
+            print("linear interp function: " + str(val) + ", " + str(xo) + ", " + str(yo) + ", " + str(xt) + ", " + str(yt))
         #steep = -1 * steepmultiplier / ((xt - xo))#
         #retval = yo + (yt - yo) * (1 / (1 + pow(math.e, steep * (val - (xo + xt)/2))))
         #retval = int(retval)
-        try:
-            retval = ((yt - yo) / (xt - xo)) * (val - xo) + yo
-        except:
-            print("point of failure")
-            print("cubic spline function: " + str(val) + ", " + str(xo) + ", " + str(yo) + ", " + str(xt) + ", " + str(yt))
-            q = input("pause...")
+        retval = ((yt - yo) / (xt - xo)) * (val - xo) + yo
         #retval = retval
         if(dbg != 0):
             print("Output: " + str(retval))
@@ -860,7 +958,7 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
         n = n + 1
     return pixelarray
 
-def generate_texmap ( genmap, texture_family ):
+def generate_texmap ( genmap, texture_family, mult, minh ):
     texmap = []
     #pull textures from texture family.
     pulldir = "textures/families/" + texture_family + "/"
@@ -969,7 +1067,8 @@ def generate_texmap ( genmap, texture_family ):
         m = 0
         row = []
         while (m < total_width):
-            merge_pixel = merge_function(m, n, texseq, infopack, expanded_heightmap[n][m])
+            ah = (expanded_heightmap[n][m] - minh) * mult
+            merge_pixel = merge_function(m, n, texseq, infopack, ah)
             row.append(merge_pixel)
             m = m + 1
         texmap.append(row)
@@ -1064,11 +1163,29 @@ def GetTextureFamilies():
         if objs.is_dir():
             retval.append(objs.name)
     return retval
-    
+
+def normalize_height( genmap ):
+    maxh = 0
+    minh = 0
+    n = 0
+    while n < len(genmap):
+        m = 0
+        while m < len(genmap[n]):
+            if(genmap[n][m] > maxh):
+                maxh = genmap[n][m]
+            if(genmap[n][m] < minh):
+                minh = genmap[n][m]
+            m = m + 1
+        n = n + 1
+
+    mult = 100 / (maxh - minh)
+    return mult, minh
 
 def main( map_properties ):
     texture_families = []
     texture_families = GetTextureFamilies()
+
+    curdir = os.getcwd()
     
     random.seed(a=map_properties["seed"], version=2)
     
@@ -1085,11 +1202,24 @@ def main( map_properties ):
     print("Map: " + mapname)
     print("\tTextures Used: " + str(texture_picked))
 
-    genmap, fliptype = generate_map(map_properties)
+    #generate map
+    genmap = []
+    fliptype = 0
+    if(map_properties["use_prefabs"] == True):
+        print("Using Prefabs.")
+        os.chdir(curdir + '/prefab_generation')
+        genmap, fliptype = prefab_generation.prefab_generation.generate_map_using_prefabs(map_properties)
+        os.chdir(curdir)
+    else:
+        print("Using Default.")
+        genmap, fliptype = generate_map(map_properties)
+    #normalize height
+    mult, minh = normalize_height(genmap)
+    #start positions
     start_positions, choice = generate_startpositions(genmap, fliptype, map_properties)
 
     #Heightmap
-    heightmap_img = generate_heightmap(genmap)
+    heightmap_img = generate_heightmap(genmap, mult, minh)
     
     heightmap_width = map_properties["mapsizex"] * 64 + 1
     heightmap_height = map_properties["mapsizey"] * 64 + 1
@@ -1116,7 +1246,7 @@ def main( map_properties ):
 
     metmap_filename = dirname + mapname + '_metal.bmp'
     #TextureMap
-    texmap = generate_texmap(genmap, texture_picked)
+    texmap = generate_texmap(genmap, texture_picked, mult, minh)
 
     texmap_img = Image.new('RGB', (map_properties["mapsizex"] * 512, map_properties["mapsizey"] * 512), 'black')
     texmap_img_pixels = texmap_img.load()
@@ -1187,6 +1317,10 @@ def main( map_properties ):
         if(len(ti_text_split_split) == 2):
             mapinfo_vars[ti_text_split_split[0]] = ti_text_split_split[1]
             print("Replaced " + ti_text_split_split[0] + " value with " + ti_text_split_split[1])
+
+    newheight = int((int(mapinfo_vars["[MAXHEIGHT]"]) + minh) / mult)
+    mapinfo_vars["[MAXHEIGHT]"] = newheight
+    print("Updated [MAXHEIGHT] to: " + str(mapinfo_vars["[MAXHEIGHT]"]))
 
     for key in mapinfo_vars:
         mapinfo_template_text = mapinfo_template_text.replace(key, str(mapinfo_vars[key]))
@@ -1326,7 +1460,8 @@ if __name__ == "__main__":
         "mapsizex": 12,
         "mapsizey": 12,
         "seed": 333666999,
-        "numplayers": 8
+        "numplayers": 8,
+        "use_prefabs": True
         }
     main(map_properties)
     
