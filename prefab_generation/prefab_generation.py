@@ -209,7 +209,7 @@ def generate_map_using_prefabs (map_properties):
         prefab_number = prefab_number // 2
     prefab_overall_scalar_low = random.randint(3, 6) / 4
     prefab_overall_scalar_high = prefab_overall_scalar_low * random.randint(3, 5) / 2
-    prefab_severity = random.randint(1, 3) / 2
+    prefab_severity = random.randint(1, 4) / 4
 
     print("\tprefab_number: " + str(prefab_number))
     print("\tprefab_overall_scalar_low: " + str(prefab_overall_scalar_low))
@@ -223,14 +223,14 @@ def generate_map_using_prefabs (map_properties):
 
     def CheckDeadZone( x, y, w, h, fliptype ):
         if(fliptype == 0):
-            if(IsBetween(x, 0, w / 8)):
+            if(IsBetween(x, -1 * w / 8, w / 8)):
                 return True
         if(fliptype == 1):
-            if(IsBetween(y, 0, h / 8)):
+            if(IsBetween(y, -1 * h / 8, h / 8)):
                 return True
         if(fliptype == 2):
             dst = pow(pow(x, 2) + pow(y, 2), 0.5)
-            if(IsBetween(dst, 0, (w + h) / 2)):
+            if(IsBetween(dst, 0, (w + h) / 16)):
                 return True
         return False
 
