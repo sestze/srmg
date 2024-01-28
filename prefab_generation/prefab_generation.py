@@ -217,16 +217,16 @@ def generate_map_using_prefabs (map_properties):
     print("\tprefab_severity: " + str(prefab_severity))
 
     def IsBetween( val, l, u ):
-        if(val < l) and (val > u):
+        if(val > l) and (val < u):
             return True
         return False
 
     def CheckDeadZone( x, y, w, h, fliptype ):
         if(fliptype == 0):
-            if(IsBetween(x, -1 * w / 8, w / 8)):
+            if(IsBetween(abs(x), 0, w / 8)):
                 return True
         if(fliptype == 1):
-            if(IsBetween(y, -1 * h / 8, h / 8)):
+            if(IsBetween(abs(y), 0, h / 8)):
                 return True
         if(fliptype == 2):
             dst = pow(pow(x, 2) + pow(y, 2), 0.5)
