@@ -223,14 +223,20 @@ def generate_map_using_prefabs (map_properties):
 
     def CheckDeadZone( x, y, w, h, fliptype ):
         if(fliptype == 0):
-            if(IsBetween(abs(x), 0, w / 8)):
+            if(IsBetween(abs(x), 0, w / 16)):
+                return True
+            if(x < 0):
                 return True
         if(fliptype == 1):
-            if(IsBetween(abs(y), 0, h / 8)):
+            if(IsBetween(abs(y), 0, h / 16)):
+                return True
+            if(y < 0):
                 return True
         if(fliptype == 2):
             dst = pow(pow(x, 2) + pow(y, 2), 0.5)
             if(IsBetween(dst, 0, (w + h) / 16)):
+                return True
+            if((x < 0) and (y < 0)):
                 return True
         return False
 
@@ -251,11 +257,14 @@ def generate_map_using_prefabs (map_properties):
             divy = 2
 
         xplace = random.randint(-1 * pfo_w // 2, int((width / divx) - pfo_w / 2))
-        yplace = random.randint(-1 * pfo_h // 2, int((height / divy) - pfo_w / 2))
+        yplace = random.randint(-1 * pfo_h // 2, int((height / divy) - pfo_h / 2))
+        #print("width // 8: " + str(width // 8) + " / height // 8: " + str(height // 8) + " / xplace: " + str(xplace) + " / yplace: " + str(yplace))
 
         while(CheckDeadZone(xplace, yplace, width, height, fliptype)):
             xplace = random.randint(-1 * pfo_w // 2, int((width / divx) - pfo_w / 2))
-            yplace = random.randint(-1 * pfo_h // 2, int((height / divy) - pfo_w / 2))
+            yplace = random.randint(-1 * pfo_h // 2, int((height / divy) - pfo_h / 2))
+            #print("fail, rerolling")
+            #print("width // 8: " + str(width // 8) + " / height // 8: " + str(height // 8) + " / xplace: " + str(xplace) + " / yplace: " + str(yplace))
 
         genmap = place_prefab(genmap, prefab_object, xplace, yplace)
 
