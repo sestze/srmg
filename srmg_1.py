@@ -13,10 +13,7 @@
 
 #TODO:
 #   - Heightmaps
-#       - Offer a different generation method that places/uses prefab heightmaps
 #       - Offer a different generation method that uses a premade heightmap
-#       - I think 128 is a bit too large for blurradius.
-#           - Changed, different cap.
 #   - Metalmap
 #       - Make the mex placement a big smarter - stop placing them on top of areas with significant slopes
 #           - Still trying on this, it's failing though.
@@ -928,20 +925,20 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
     if(metaltype == 0):
         print("\tMetaltype: Constant")
     if(metaltype == 1):
-        print("\tMetaltype: Scaling")
+        print("\tMetaltype: Scaling-Up")
 
     def GetMetal( xp, yp, xc, yc, fliptype):
         retval = 255
         if(fliptype == 0):
-            p = min(max(-1 * abs(xp - xc) * 2 / xc + 0.75, 0.5), 1)
+            p = min(max(-1 * abs(xp - xc) * 2 / xc + 1.25, 0.5), 1)
             retval = 255 * p
         if(fliptype == 1):
-            p = min(max(-1 * abs(yp - yc) * 2 / yc + 0.75, 0.5), 1)
+            p = min(max(-1 * abs(yp - yc) * 2 / yc + 1.25, 0.5), 1)
             retval = 255 * p
         if(fliptype == 2):
             dst = pow(pow((xp - xc),2) + pow((yp-yc), 2), 0.5)
             mxdst = pow(pow(xc,2) + pow(yc, 2), 0.5)
-            p = min(max(-1 * abs(dst - mxdst) * 2 / mxdst + 0.75, 0.5), 1)
+            p = min(max(-1 * abs(dst - mxdst) * 2 / mxdst + 1.25, 0.5), 1)
             retval = 255 * p
 
         return int(retval)
@@ -1454,7 +1451,7 @@ if __name__ == "__main__":
     map_properties = {
         "mapsizex": 12,
         "mapsizey": 12,
-        "seed": 999876665433321000,
+        "seed": 555555555555,
         "numplayers": 8,
         "use_prefabs": True
         }
