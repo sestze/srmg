@@ -1,0 +1,3 @@
+concrete_low.bmp,696,512
+concrete_mid.bmp,762,512
+concrete_high.bmp,768,512

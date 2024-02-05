@@ -509,7 +509,10 @@ def generate_map (map_properties):
                     cnt = cnt + 1
                 m = m + 1
             n = n +1
-        totval = totval / cnt
+        if(cnt > 0):
+            totval = totval / cnt
+        else:
+            totval = coords[keyx][keyy][2]
         return totval
         
     #blurring
@@ -721,6 +724,70 @@ def generate_expandmap ( genmap ):
             r = r + 1
         n = n + 1
     return heightmap_expanded
+
+def generate_gradient ( genmap ):
+    #outputs a [x,y] list that states the averaged secant approximation.
+    flattened = []
+    #We're going to use the heightmap for this, and just duplicate the output by 8.
+    #first remove that pesky extra pixel
+    n = 0
+    while n < (len(genmap) - 1):
+        m = 0
+        row = []
+        while m < (len(genmap[n]) - 1):
+            row.append((genmap[n][m] + genmap[n][m+1] + genmap[n+1][m] + genmap[n+1][m+1]) / 4)
+            m = m + 1
+        flattened.append(row)
+        n = n + 1
+    #find gradient, outputx8
+    gradient = []
+    n = 0
+    while n < (len(flattened)):
+        m = 0
+        row = []
+        while m < (len(flattened[n])):
+            gradlx = 0
+            gradrx = 0
+            graduy = 0
+            gradly = 0
+
+            gradx = 0
+            grady = 0
+            if(m > 0):
+                gradlx = (flattened[n][m-1] - flattened[n][m])
+            if(m < (len(flattened[n]) - 1)):
+                gradrx = (flattened[n][m] - flattened[n][m+1])
+            if(n > 0):
+                graduy = (flattened[n-1][m] - flattened[n][m])
+            if(n < (len(flattened) - 1)):
+                gradly = (flattened[n][m] - flattened[n+1][m])
+
+            if(m == 0):
+                gradx = gradrx
+            elif(m == (len(flattened[n]) - 1)):
+                gradx = gradlx
+            else:
+                gradx = (gradlx + gradrx) / 2
+                
+            if(n == 0):
+                grady = gradly
+            elif(n == (len(flattened) - 1)):
+                grady = graduy
+            else:
+                grady = (gradly + graduy) / 2
+
+            r = 0
+            while r < 8:
+                row.append([gradx,grady])
+                r = r + 1
+                
+            m = m + 1
+        r = 0
+        while r < 8:
+            gradient.append(row)
+            r = r + 1
+        n = n + 1
+    return gradient
 
 def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
     metalmap = []
@@ -977,6 +1044,7 @@ def generate_texmap ( genmap, texture_family, mult, minh ):
     
     #expand...
     expanded_heightmap = generate_expandmap( genmap )
+    gradient_heightmap = generate_gradient ( genmap )
     #load textures...
     #   - 0 : lowground (0-20 clean, 21-40 merged)
     #   - 1 : midground (41-60 clean, 61-80 merged)
@@ -1023,6 +1091,10 @@ def generate_texmap ( genmap, texture_family, mult, minh ):
             while(height > ((100/n) * key)):
                 key = key + 1
             key = key - 1
+            while(key+1 > (len(ip) - 1)):
+                print("key oob, height is: " + str(height))
+                print(str(len(ip)))
+                key = key - 1
             
             lw = ip[key][0]
             lh = ip[key][1]
@@ -1061,6 +1133,20 @@ def generate_texmap ( genmap, texture_family, mult, minh ):
             b = hmod
         return (int(r), int(g), int(b))
 
+    def gradient_merge(m, n, gradient, curpixel):
+        r = curpixel[0]
+        g = curpixel[1]
+        b = curpixel[2]
+
+        gradmag = pow(pow(gradient[n][m][0],2) + pow(gradient[n][m][1], 2),0.5)
+        p = max(gradmag / 1, 1)
+        q = 1-p
+        nr = r * q
+        ng = g * q
+        nb = b * q
+
+        return (int(r), int(g), int(b))
+
     n = 0
     while (n < total_height):
         m = 0
@@ -1068,7 +1154,8 @@ def generate_texmap ( genmap, texture_family, mult, minh ):
         while (m < total_width):
             ah = (expanded_heightmap[n][m] - minh) * mult
             merge_pixel = merge_function(m, n, texseq, infopack, ah)
-            row.append(merge_pixel)
+            gradpix = gradient_merge(m, n, gradient_heightmap, merge_pixel)
+            row.append(gradpix)
             m = m + 1
         texmap.append(row)
         n = n + 1
@@ -1451,7 +1538,7 @@ if __name__ == "__main__":
     map_properties = {
         "mapsizex": 12,
         "mapsizey": 12,
-        "seed": 555555555555,
+        "seed": 551551551551,
         "numplayers": 8,
         "use_prefabs": True
         }

@@ -138,8 +138,15 @@ def generate_map_using_prefabs (map_properties):
     height = int(map_properties["mapsizey"]) * 64 + 1
     genmap = []
 
-    startheight = random.randint(0, 10) * 10
-    endheight = random.randint(0, 10) * 10
+    startheight = 50
+    endheight = 50
+    slopechoice = random.randint(0, 2)
+    if(slopechoice == 1):
+        startheight = random.randint(2, 4) * 10
+        endheight = 100 - startheight
+    if(slopechoice == 2):
+        startheight = random.randint(6, 8) * 10
+        endheight = 100 - startheight
     
     fliptype = random.randint(0, 2)
     if(width > height):
@@ -204,12 +211,12 @@ def generate_map_using_prefabs (map_properties):
     print("\tprefab family: " + chosen_family)
     prefab_info = get_prefab_infofile(chosen_family)
     #add in prefabs
-    prefab_number = random.randint(2, 8)
+    prefab_number = random.randint(2, 8) * max((map_properties["mapsizex"] + map_properties["mapsizey"]) // 24, 1)
     if(fliptype == 2):
         prefab_number = prefab_number // 2
     prefab_overall_scalar_low = random.randint(5, 8) / 4
     prefab_overall_scalar_high = prefab_overall_scalar_low * random.randint(3, 5) / 2
-    prefab_severity = random.randint(1, 4) / 4
+    prefab_severity = random.randint(1, 8) / 4
 
     print("\tprefab_number: " + str(prefab_number))
     print("\tprefab_overall_scalar_low: " + str(prefab_overall_scalar_low))
@@ -221,17 +228,17 @@ def generate_map_using_prefabs (map_properties):
             return True
         return False
 
-    def CheckDeadZone( x, y, w, h, fliptype ):
+    def CheckDeadZone( x, y, w, h, pfo_w, pfo_h, fliptype ):
         if(fliptype == 0):
-            if(IsBetween(abs(x), 0, w / 24)):
+            if(IsBetween(x, -1 * pfo_w // 2, w / 24)):
                 return True
-            if(x < 0):
-                return True
+            #if(x < pfo_w):
+            #    return True
         if(fliptype == 1):
-            if(IsBetween(abs(y), 0, h / 24)):
+            if(IsBetween(y, -1 * pfo_h // 2, h / 24)):
                 return True
-            if(y < 0):
-                return True
+            #if(y < 0):
+            #    return True
         if(fliptype == 2):
             dst = pow(pow(x, 2) + pow(y, 2), 0.5)
             if(IsBetween(dst, 0, (w + h) / 24)):
@@ -248,25 +255,39 @@ def generate_map_using_prefabs (map_properties):
         divx = 1
         divy = 1
 
+        xplace = random.randint(-1 * pfo_w // 2, int((width / divx) - pfo_w / 2))
+        yplace = random.randint(-1 * pfo_h // 2, int((height / divy) - pfo_h / 2))
         if(fliptype == 0):
             divx = 2
+            xplace = random.randint(0, int((width / divx)))
         if(fliptype == 1):
             divy = 2
+            yplace = random.randint(0, int((height / divy)))
         if(fliptype == 2):
             divx = 2
             divy = 2
+            radius = random.randint(0, int(max((width + height) / 2 - (pfo_w + pfo_h) / 2,0)))
+            ang = random.randint(-45, 135)
+            xplace = int(math.cos(ang) * radius)
+            yplace = int(math.sin(ang) * radius)
 
-        xplace = random.randint(-1 * pfo_w // 2, int((width / divx) - pfo_w / 2))
-        yplace = random.randint(-1 * pfo_h // 2, int((height / divy) - pfo_h / 2))
+#        xplace = random.randint(-1 * pfo_w // 2, int((width / divx) - pfo_w / 2))
+#        yplace = random.randint(-1 * pfo_h // 2, int((height / divy) - pfo_h / 2))
+        #xplace = random.randint(-1 * pfo_w // 2, int(width / divx))
+        #yplace = random.randint(-1 * pfo_h // 2, int(height / divy))
         #print("width // 8: " + str(width // 8) + " / height // 8: " + str(height // 8) + " / xplace: " + str(xplace) + " / yplace: " + str(yplace))
 
-        while(CheckDeadZone(xplace, yplace, width, height, fliptype)):
-            xplace = random.randint(-1 * pfo_w // 2, int((width / divx) - pfo_w / 2))
-            yplace = random.randint(-1 * pfo_h // 2, int((height / divy) - pfo_h / 2))
+        #while(CheckDeadZone(xplace, yplace, width, height, pfo_w, pfo_h, fliptype)):
+            #xplace = random.randint(-1 * pfo_w // 2, int((width / divx) - pfo_w / 2))
+            #yplace = random.randint(-1 * pfo_h // 2, int((height / divy) - pfo_h / 2))
+            #xplace = random.randint(-1 * pfo_w // 2, int(width / divx))
+            #yplace = random.randint(-1 * pfo_h // 2, int(height / divy))
             #print("fail, rerolling")
-            #print("width // 8: " + str(width // 8) + " / height // 8: " + str(height // 8) + " / xplace: " + str(xplace) + " / yplace: " + str(yplace))
+            #print("LOW: " + str(-1 * pfo_h // 2) + " / HIGH: " + str(int((height / divy) - pfo_h / 2)))
+            #print("xplace: " + str(xplace) + " / yplace: " + str(yplace))
 
         genmap = place_prefab(genmap, prefab_object, xplace, yplace)
+        print("prefab placed at: (" + str(xplace) + ", " + str(yplace) + ")")
 
         n = n + 1
     #flip the map
@@ -320,14 +341,41 @@ def generate_map_using_prefabs (map_properties):
                     cnt = cnt + 1
                 m = m + 1
             n = n + 1
-        totval = totval / cnt
+        if(cnt > 0):
+            totval = totval / cnt
+        else:
+            nux = clamp(keyx, 0, len(coords[0]) - 1)
+            nuy = clamp(keyy, 0, len(coords) - 1)
+            totval = coords[nuy][nux]
         return totval
     print("blurring")
+    #going to clamp this
+    scaleblur = 20
+    if(fliptype == 0) or (fliptype == 2):
+        n = 0
+        while (n < height):
+            m = width // 2 - scaleblur
+            while(m < (width // 2 + scaleblur)):
+                dst = max(-1 * abs(m - width // 2) + 20, 0)
+                genmap[n][m] = AverageCoordsInCircle(m, n, genmap, dst)
+                m = m + 1
+            n = n + 1
+    if(fliptype == 1) or (fliptype == 2):
+        n = height // 2 - scaleblur
+        while (n < (height // 2 + scaleblur)):
+            m = 0
+            while(m < width):
+                dst = max(-1 * abs(n - height // 2) + 20, 0)
+                genmap[n][m] = AverageCoordsInCircle(m, n, genmap, dst)
+                m = m + 1
+            n = n + 1
+
+    #Global blur. readded in addition to clamped blur to smooth added terrain chunks
     n = 0
     while(n < height):
         m = 0
         while (m < width):
-            genmap[n][m] = AverageCoordsInCircle(m, n, genmap, blurrad)
+            genmap[n][m] = AverageCoordsInCircle(m, n, genmap, 3)
             m = m + 1
         n = n + 1
 
