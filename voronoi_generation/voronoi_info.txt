@@ -1,0 +1,3 @@
+Creates a Voronoi Diagram for a heightmap.
+
+https://en.wikipedia.org/wiki/Voronoi_diagram

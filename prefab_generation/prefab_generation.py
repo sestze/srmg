@@ -391,7 +391,7 @@ if __name__ == "__main__":
         "mapsizey": 12,
         "seed": 333666999,
         "numplayers": 8,
-        "use_prefabs": True
+        "generation_type": "prefab"     #normal, prefab, voronoi
         }
     genmap = generate_map_using_prefabs(map_properties)
     #print(str(genmap))

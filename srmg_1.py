@@ -33,6 +33,8 @@ import py7zr
 
 import prefab_generation.prefab_generation
 
+import voronoi_generation.voronoi_generation
+
 #from typing import BinaryIO, List, Tuple
 from PIL import Image
 
@@ -1291,10 +1293,15 @@ def main( map_properties ):
     #generate map
     genmap = []
     fliptype = 0
-    if(map_properties["use_prefabs"] == True):
+    if(map_properties["generation_type"] == "prefab"):
         print("Using Prefabs.")
         os.chdir(curdir + '/prefab_generation')
         genmap, fliptype = prefab_generation.prefab_generation.generate_map_using_prefabs(map_properties)
+        os.chdir(curdir)
+    elif(map_properties["generation_type"] == "voronoi"):
+        print("Using Voronoi.")
+        os.chdir(curdir + '/voronoi_generation')
+        genmap, fliptype = voronoi_generation.voronoi_generation.generate_map_using_voronoi(map_properties)
         os.chdir(curdir)
     else:
         print("Using Default.")
@@ -1538,9 +1545,9 @@ if __name__ == "__main__":
     map_properties = {
         "mapsizex": 12,
         "mapsizey": 12,
-        "seed": 551551551551,
+        "seed": 246810,
         "numplayers": 8,
-        "use_prefabs": True
+        "generation_type": "voronoi"     #normal, prefab, voronoi
         }
     main(map_properties)
     
