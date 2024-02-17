@@ -122,25 +122,27 @@ def generate_map_using_voronoi (map_properties):
 
     n = 0
     while (n < voronoi_max):
+        xs = 0
+        ys = 0
         xtot = width
         ytot = height
 
         if(fliptype == 0) or (fliptype == 2):
-            xtot = xtot // 2
+            xs = 4 * width // (map_properties["mapsizex"] * 2)
         if(fliptype == 1) or (fliptype == 2):
-            ytot = ytot // 2
+            ys = 4 * height // (map_properties["mapsizey"] * 2)
 
-        xpos = random.randint(0, xtot)
-        ypos = random.randint(0, ytot)
+        xpos = random.randint(xs, xtot)
+        ypos = random.randint(ys, ytot)
 
-        setheight = random.randint(0, 10) * 10
+        setheight = random.randint(2, 8) * 10
         m = 0
         while (m < len(voronoi_points)):
             dst = pow(pow((voronoi_points[m][0] - xpos), 2) + pow((voronoi_points[m][1] - ypos), 2), 0.5)
             if(dst < mindist):
-                m = 0
-                xpos = random.randint(0, xtot)
-                ypos = random.randint(0, ytot)
+                m = -1
+                xpos = random.randint(xs, xtot)
+                ypos = random.randint(ys, ytot)
             m = m + 1
         voronoi_points.append([xpos, ypos, setheight])
         n = n + 1
