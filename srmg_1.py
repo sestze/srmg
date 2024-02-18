@@ -818,20 +818,21 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
     print("\tmexcount: " + str(mexcount * 2 + map_properties["numplayers"] * 6))
 
     def distfrom (xo, yo, xt, yt):
-        distsq = (xt - xo) * (xt - xo) + (yt - yo) * (yt - yo)
+        distsq = pow(pow((xt - xo), 2) + pow((yt - yo), 2), 0.5)
         return distsq
 
     mexchk = 4 #checks this many pixels left/right of the mex possiblepoint
-    mexthresh = 4 #slope across mexchk up/down needs to be less than this
+    mexdst = 32 * (map_properties["mapsizex"] + map_properties["mapsizey"]) // 24
+    mexthresh = 0.01 #slope across mexchk up/down needs to be less than this
     
     if(fliptype == 0):
         n = 0
         while n < mexcount:
             #lbound = min(int(4 * xcoord / (2 * map_properties["mapsizex"])), int(4 * xcoord / 16))
-            lbound = min(int(xcoord / (2 * map_properties["mapsizex"])), int(xcoord / 16))
-            rbound = int(xcoord / 2) - 4
-            ubound = min(int(ycoord / (2 * map_properties["mapsizey"])), int(ycoord / 16))
-            bbound = ycoord - ubound
+            lbound = mexchk
+            rbound = int(xcoord / 2) - mexdst // 2
+            ubound = mexchk
+            bbound = ycoord - mexchk
             
             possiblepoint = [random.randint(lbound, rbound), random.randint(ubound, bbound)]
             m = 0
@@ -839,10 +840,10 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
             while((m < len(metalpoints)) and (r > 0)):
                 dst = distfrom(possiblepoint[0], possiblepoint[1], metalpoints[m][0], metalpoints[m][1])
                 #mex sanity check
-                xl = min(possiblepoint[0] - mexchk, 0)
-                xm = max(possiblepoint[0] + mexchk, xcoord - 1)
-                yu = min(possiblepoint[1] - mexchk, 0)
-                yl = max(possiblepoint[1] + mexchk, ycoord - 1)
+                xl = max(possiblepoint[0] - mexchk, 0)
+                xm = min(possiblepoint[0] + mexchk, xcoord - 1)
+                yu = max(possiblepoint[1] - mexchk, 0)
+                yl = min(possiblepoint[1] + mexchk, ycoord - 1)
 
                 xs = abs(condensemap[possiblepoint[1]][xm] - condensemap[possiblepoint[1]][xl]) / (2 * mexchk)
                 ys = abs(condensemap[yu][possiblepoint[0]] - condensemap[yl][possiblepoint[0]]) / (2 * mexchk)
@@ -853,7 +854,7 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
                 if(xs > mexthresh) or (ys > mexthresh):
                     Skip = True
 
-                if(dst < 16) or (Skip == True):
+                if(dst < mexdst) or (Skip == True):
                     possiblepoint = [random.randint(lbound, rbound), random.randint(ubound, bbound)]
                     m = 0
                     r = r - 1
@@ -870,20 +871,20 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
     elif(fliptype == 1):
         n = 0
         while n < mexcount:
-            ubound = min(int(ycoord / (2 * map_properties["mapsizey"])), int(ycoord / 16))
-            bbound = int(ycoord / 2) - 4
-            lbound = min(int(xcoord / (2 * map_properties["mapsizex"])), int(xcoord / 16))
-            rbound = xcoord - lbound
+            ubound = mexchk
+            bbound = int(ycoord / 2) - mexdst // 2
+            lbound = mexchk
+            rbound = xcoord - mexchk
             
             possiblepoint = [random.randint(lbound, rbound), random.randint(ubound, bbound)]
             m = 0
             r = 5000
             while((m < len(metalpoints)) and (r > 0)):
                 dst = distfrom(possiblepoint[0], possiblepoint[1], metalpoints[m][0], metalpoints[m][1])
-                xl = min(possiblepoint[0] - mexchk, 0)
-                xm = max(possiblepoint[0] + mexchk, xcoord - 1)
-                yu = min(possiblepoint[1] - mexchk, 0)
-                yl = max(possiblepoint[1] + mexchk, ycoord - 1)
+                xl = max(possiblepoint[0] - mexchk, 0)
+                xm = min(possiblepoint[0] + mexchk, xcoord - 1)
+                yu = max(possiblepoint[1] - mexchk, 0)
+                yl = min(possiblepoint[1] + mexchk, ycoord - 1)
 
                 xs = abs(condensemap[possiblepoint[1]][xm] - condensemap[possiblepoint[1]][xl]) / (2 * mexchk)
                 ys = abs(condensemap[yu][possiblepoint[0]] - condensemap[yl][possiblepoint[0]]) / (2 * mexchk)
@@ -894,7 +895,7 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
                 if(xs > mexthresh) or (ys > mexthresh):
                     Skip = True
 
-                if(dst < 16) or (Skip == True):
+                if(dst < mexdst) or (Skip == True):
                     possiblepoint = [random.randint(lbound, rbound), random.randint(ubound, bbound)]
                     m = 0
                     r = r - 1
@@ -910,20 +911,20 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
     elif(fliptype == 2):    #i'm lazy, we'll just make this identical to flipcount 0, but then rotate it by 180 to place the mexes on the other half
         n = 0
         while n < mexcount:
-            lbound = min(int(xcoord / (2 * map_properties["mapsizex"])), int(xcoord / 16))
-            rbound = int(xcoord / 2) - 4
-            ubound = min(int(ycoord / (2 * map_properties["mapsizey"])), int(ycoord / 16))
-            bbound = ycoord - ubound
+            lbound = mexchk
+            rbound = int(xcoord / 2) - mexdst // 2
+            ubound = mexchk
+            bbound = ycoord - mexchk
 
             possiblepoint = [random.randint(lbound, rbound), random.randint(ubound, bbound)]
             m = 0
             r = 5000
             while((m < len(metalpoints)) and (r > 0)):
                 dst = distfrom(possiblepoint[0], possiblepoint[1], metalpoints[m][0], metalpoints[m][1])
-                xl = min(possiblepoint[0] - mexchk, 0)
-                xm = max(possiblepoint[0] + mexchk, xcoord - 1)
-                yu = min(possiblepoint[1] - mexchk, 0)
-                yl = max(possiblepoint[1] + mexchk, ycoord - 1)
+                xl = max(possiblepoint[0] - mexchk, 0)
+                xm = min(possiblepoint[0] + mexchk, xcoord - 1)
+                yu = max(possiblepoint[1] - mexchk, 0)
+                yl = min(possiblepoint[1] + mexchk, ycoord - 1)
 
                 xs = abs(condensemap[possiblepoint[1]][xm] - condensemap[possiblepoint[1]][xl]) / (2 * mexchk)
                 ys = abs(condensemap[yu][possiblepoint[0]] - condensemap[yl][possiblepoint[0]]) / (2 * mexchk)
@@ -934,7 +935,7 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
                 if(xs > mexthresh) or (ys > mexthresh):
                     Skip = True
 
-                if(dst < 16) or (Skip == True):
+                if(dst < mexdst) or (Skip == True):
                     possiblepoint = [random.randint(lbound, rbound), random.randint(ubound, bbound)]
                     m = 0
                     r = r - 1
@@ -1042,6 +1043,7 @@ def generate_texmap ( genmap, texture_family, mult, minh ):
         if(len(commasep) == 3):
             texturepack.append(commasep[0])
             infopack.append([int(commasep[1]), int(commasep[2])])
+            print(str(commasep[0]) + ": " + str(commasep[1]) + ", " + str(commasep[2]))
         n = n + 1
     
     #expand...
@@ -1179,7 +1181,7 @@ def generate_startpositions ( genmap, fliptype, map_properties ):
     frontline = map_properties["numplayers"] - backline
     choice = 0
     if(fliptype == 0):
-        xset = min(int(xcoord / (map_properties["mapsizex"] * 2)), int(xcoord / 16))
+        xset = max(int(xcoord / (map_properties["mapsizex"] * 2)), int(xcoord / 16))
         xset2 = xcoord - xset
         n = 0
         while n < backline:
@@ -1187,7 +1189,7 @@ def generate_startpositions ( genmap, fliptype, map_properties ):
             start_positions.append([xset, yset])
             start_positions.append([xset2, yset])
             n = n + 1
-        xset = min(int(4 * xcoord / (map_properties["mapsizex"] * 2)), int(4 * xcoord / 16))
+        xset = max(int(3 * xcoord / (map_properties["mapsizex"] * 2)), int(3 * xcoord / 16))
         xset2 = xcoord - xset
         n = 0
         while n < frontline:
@@ -1196,7 +1198,7 @@ def generate_startpositions ( genmap, fliptype, map_properties ):
             start_positions.append([xset2, yset])
             n = n + 1
     elif(fliptype == 1):
-        yset = min(int(ycoord / (map_properties["mapsizey"] * 2)), int(ycoord / 16))
+        yset = max(int(ycoord / (map_properties["mapsizey"] * 2)), int(ycoord / 16))
         yset2 = ycoord - yset
         n = 0
         while n < backline:
@@ -1204,7 +1206,7 @@ def generate_startpositions ( genmap, fliptype, map_properties ):
             start_positions.append([xset, yset])
             start_positions.append([xset, yset2])
             n = n + 1
-        yset = min(int(4 * ycoord / (map_properties["mapsizey"] * 2)), int(4 * ycoord / 16))
+        yset = max(int(3 * ycoord / (map_properties["mapsizey"] * 2)), int(3 * ycoord / 16))
         yset2 = ycoord - yset
         n = 0
         while n < frontline:
@@ -1214,7 +1216,7 @@ def generate_startpositions ( genmap, fliptype, map_properties ):
             n = n + 1
     elif(fliptype == 2):
         choice = random.randint(0, 1)
-        radius = 4 * min(int(min(xcoord, ycoord) / (min(map_properties["mapsizex"], map_properties["mapsizey"]) * 2)), int(min(xcoord, ycoord) / 16))
+        radius = 3 * max(int(min(xcoord, ycoord) / (min(map_properties["mapsizex"], map_properties["mapsizey"]) * 2)), int(min(xcoord, ycoord) / 16))
         n = 0
         while n < backline:
             #top left/bottom left
@@ -1226,7 +1228,7 @@ def generate_startpositions ( genmap, fliptype, map_properties ):
             yset = ycoord * (1 - choice) + math.pow(-1, (1 - choice)) * int(radius * math.sin((math.pi / 2) * (n + 1) / (backline + 1)))
             start_positions.append([xset, yset])
             n = n + 1
-        radius = int(1.5 * min(4 * int(min(xcoord, ycoord) / (2 * min(map_properties["mapsizex"], map_properties["mapsizey"]))), int(4 * min(xcoord, ycoord) / 16)))
+        radius = int(1.5 * max(3 * int(min(xcoord, ycoord) / (2 * min(map_properties["mapsizex"], map_properties["mapsizey"]))), int(3 * min(xcoord, ycoord) / 16)))
         n = 0
         while n < frontline:
             #top left/bottom left
@@ -1545,7 +1547,7 @@ if __name__ == "__main__":
     map_properties = {
         "mapsizex": 12,
         "mapsizey": 12,
-        "seed": 246810,
+        "seed": 66251,
         "numplayers": 8,
         "generation_type": "voronoi"     #normal, prefab, voronoi
         }

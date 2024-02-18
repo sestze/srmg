@@ -1,2 +1,6 @@
-blue_crystal_low.bmp,769,512
-blue_crystal_high.bmp,769,512
+blue_crystal_1.bmp,512,512
+blue_crystal_2.bmp,740,740
+blue_crystal_3.bmp,769,512
+blue_crystal_4.bmp,740,740
+blue_crystal_5.bmp,1060,693
+blue_crystal_6.bmp,769,512
