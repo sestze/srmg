@@ -35,6 +35,8 @@ import prefab_generation.prefab_generation
 
 import voronoi_generation.voronoi_generation
 
+import path_generation.path_generation
+
 #from typing import BinaryIO, List, Tuple
 from PIL import Image
 
@@ -1008,7 +1010,7 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
         if(fliptype == 2):
             dst = pow(pow((xp - xc),2) + pow((yp-yc), 2), 0.5)
             mxdst = pow(pow(xc,2) + pow(yc, 2), 0.5)
-            p = min(max(-1 * abs(dst - mxdst) * 2 / mxdst + 1.25, 0.5), 1)
+            p = min(max(-1 * abs(dst) / mxdst + 1.25, 0.5), 1)
             retval = 255 * p
 
         return int(retval)
@@ -1305,6 +1307,11 @@ def main( map_properties ):
         os.chdir(curdir + '/voronoi_generation')
         genmap, fliptype = voronoi_generation.voronoi_generation.generate_map_using_voronoi(map_properties)
         os.chdir(curdir)
+    elif(map_properties["generation_type"] == "paths"):
+        print("Using Paths.")
+        os.chdir(curdir + '/path_generation')
+        genmap, fliptype = path_generation.path_generation.generate_map_using_paths(map_properties)
+        os.chdir(curdir)
     else:
         print("Using Default.")
         genmap, fliptype = generate_map(map_properties)
@@ -1547,9 +1554,9 @@ if __name__ == "__main__":
     map_properties = {
         "mapsizex": 12,
         "mapsizey": 12,
-        "seed": 66251,
+        "seed": 42069,
         "numplayers": 8,
-        "generation_type": "voronoi"     #normal, prefab, voronoi
+        "generation_type": "paths"     #normal, prefab, voronoi, paths
         }
     main(map_properties)
     

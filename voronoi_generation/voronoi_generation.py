@@ -1,4 +1,4 @@
-#prefab_generation.py
+#voronoi_generation.py
 #author: Sestze
 #
 #Creates a voronoi diagram with a set of different heightmap points.

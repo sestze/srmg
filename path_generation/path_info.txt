@@ -1,0 +1,1 @@
+Uses cubic splines to create 3-6 pathways across the map, filling the intermittent areas with unbuildable garbage.
