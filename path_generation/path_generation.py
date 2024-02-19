@@ -121,8 +121,8 @@ def generate_map_using_paths (map_properties):
             yset = int(radius * math.sin((math.pi / 2) * (n + 1) / (backline + 1)))
             path_points.append([xset, yset])
             n = n + 1
-        startspline = random.randint(int(radius * 1.1), int(pow(pow(width, 2) + pow(height, 2) - int(radius * 1.1), 0.5) // 2))
-        endspline = random.randint(startspline + radius // 2, int(pow(pow(width, 2) + pow(height, 2) - int(radius * 1.1), 0.5)))
+        startspline = random.randint(int(radius * 1.1), pow(pow(width, 2) + pow(height, 2), 0.5) // 2 - int(radius * 1.1))
+        endspline = random.randint(startspline + radius // 2, int(pow(pow(width, 2) + pow(height, 2), 0.5))- int(radius * 1.1))
 
     #defining the splines
     spline_startpoints = []
@@ -158,14 +158,14 @@ def generate_map_using_paths (map_properties):
     if(fliptype == 2):
         n = 0
         while(n < numpaths):
-            wiggle = path.pi / (4 * numpaths + 1) * random.uniform(-1, 1)
+            wiggle = math.pi / (4 * numpaths + 1) * random.uniform(-1, 1)
             #starting position
             radius = 3 * max(int(min(width, height) / (min(map_properties["mapsizex"], map_properties["mapsizey"]) * 2)), int(min(width, height) / 16))
             xset = int(radius * math.cos(wiggle + (math.pi / 2) * (n + 1) / (numpaths + 1)))
             yset = int(radius * math.sin(wiggle + (math.pi / 2) * (n + 1) / (numpaths + 1)))
             spline_startpoints.append([xset, yset])
             
-            wiggle = path.pi / (4 * numpaths + 1) * random.uniform(-1, 1)
+            wiggle = math.pi / (4 * numpaths + 1) * random.uniform(-1, 1)
             #ending position
             radius = pow(pow(3 * width // 4, 2) + pow(3 * height // 4, 2), 0.5)
             xset = int(radius * math.cos(wiggle + (math.pi / 2) * (n + 1) / (numpaths + 1)))
@@ -233,6 +233,16 @@ def generate_map_using_paths (map_properties):
         sinstrtot = sinstrtot + strength
         n = n + 1
     cosstrtot = (cosstrtot + sinstrtot) / 2
+
+    tv = random.randint(2, 8) * 5
+    bv = random.randint(1, 5) * 3
+
+    heightdiff = 10 + random.randint(0, 6) * 5
+    heightbythresh = random.randint(0, 10) * 5
+    print("\ttv: " + str(tv))
+    print("\tbv: " + str(bv))
+    print("\theightdiff: " + str(heightdiff))
+    print("\theightbythresh: " + str(heightbythresh))
     n = 0
     while(n < height):
         row = []
@@ -271,13 +281,13 @@ def generate_map_using_paths (map_properties):
             #adding thresh variance for more interesting path generation
             r = 0
             while(r < cossum):
-                threshvariance = threshvariance + math.cos(math.pi * (cosvars[r][1] * m + cosvars[r][0]) / 180) * cosvars[r][2]
-                threshvariance = threshvariance + math.sin(math.pi * (sinvars[r][1] * n + sinvars[r][0]) / 180) * sinvars[r][2]
-                bumpvariance = bumpvariance + math.cos(math.pi * (cosvars[r][1] * n + cosvars[r][0]) / 360) * cosvars[r][2]
-                bumpvariance = bumpvariance + math.sin(math.pi * (sinvars[r][1] * m + sinvars[r][0]) / 360) * sinvars[r][2]
+                threshvariance = threshvariance + math.cos(math.pi * (cosvars[r][1] * m + cosvars[r][0]) / 270) * cosvars[r][2]
+                threshvariance = threshvariance + math.sin(math.pi * (sinvars[r][1] * n + sinvars[r][0]) / 270) * sinvars[r][2]
+                bumpvariance = bumpvariance + math.cos(math.pi * (sinvars[r][1] * n + sinvars[r][0]) / 540) * sinvars[r][2]
+                bumpvariance = bumpvariance + math.sin(math.pi * (cosvars[r][1] * m + cosvars[r][0]) / 540) * cosvars[r][2]
                 r = r + 1
-            threshvariance = threshvariance / cosstrtot * 10 * (map_properties["mapsizex"] + map_properties["mapsizey"]) // 24
-            bumpvariance = bumpvariance / cosstrtot * 15
+            threshvariance = threshvariance / cosstrtot * tv * (map_properties["mapsizex"] + map_properties["mapsizey"]) // 24
+            bumpvariance = bumpvariance / cosstrtot * bv
             #scan paths
             r = 0
             isinpath = False
@@ -301,7 +311,8 @@ def generate_map_using_paths (map_properties):
                 r = r + 1
             #if successfully within radius, set to max(htemp + 20 + (mindist - thresh)/20, 90) + random.randint(0, 10)
             if(isinpath == False):
-                htemp = htemp + 20 + 40 * (mindist - thresh)/(thresh) + bumpvariance
+                moddedthresh = thresh + threshvariance
+                htemp = htemp + heightdiff + heightbythresh * (mindist - moddedthresh)/(moddedthresh) + bumpvariance
             row.append(htemp)
             m = m + 1
         genmap.append(row)
