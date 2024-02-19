@@ -824,7 +824,7 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
         return distsq
 
     mexchk = 4 #checks this many pixels left/right of the mex possiblepoint
-    mexdst = 32 * (map_properties["mapsizex"] + map_properties["mapsizey"]) // 24
+    mexdst = 24 * (map_properties["mapsizex"] + map_properties["mapsizey"]) // 24
     mexthresh = 0.01 #slope across mexchk up/down needs to be less than this
     
     if(fliptype == 0):
