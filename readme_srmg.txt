@@ -8,7 +8,9 @@ Installation Instructions:
 
 	Seed can be changed near the bottom of the script itself.
 
-	Outputs the map to maps/srmg_seed/srmg_seed.sd7
+	Gentype can be changed in the map properties, currently has prefab, voronoi, and paths.
+
+	Outputs the map to maps/srmg_gentype_fliptype_seed/srmg_gentype_fliptype_seed.sd7
 
 You can add your own texture families for generation:
 	1) Create a folder with the family name in /textures/families
@@ -20,7 +22,7 @@ You can add your own texture families for generation:
 		[VARNAME],var
 			These will be modified in the mapinfo.lua before the map is fully packaged.
 
-You can add your own heightmap families for generation:
+You can add your own heightmap families for prefab generation:
 	1) Create a folder with the family name in /prefab_generation/prefabs/
 	2) Place 24 bit .bmp heightmaps in that folder
 		(R, G, B) of (128, 128, 128) leaves the height the same in the heightmap. Less subtracts from the mapheight, and more adds to the mapheight.
