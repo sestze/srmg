@@ -22,6 +22,13 @@
 #   - once fodder is placed, we mirror the pixels accordingly.
 #   - ship back the generated map and fliptype.
 
+#Issues:
+#   - I lack good prefabs. I'd like more of them
+#   - Maybe some form of intelligent prefabs? maybe?
+#       - maybe if you have a string like start_ in your prefab it'll coopt it for startpoints
+#       - obstacle_ could specifically be placed in such a way to avoid startpoints
+#   - I don't have fliptypes for 2, 3, and I need to move fliptypes for 2 to 4 and 5.
+
 import random
 import struct
 import zlib
@@ -132,7 +139,7 @@ def place_prefab(genmap, prefab_object, xplace, yplace):
 
     return retmap
 
-def generate_map_using_prefabs (map_properties):
+def generate_map_using_prefabs (map_properties, start_positions, fliptype):
     #set up some variables
     width = int(map_properties["mapsizex"]) * 64 + 1
     height = int(map_properties["mapsizey"]) * 64 + 1
@@ -148,22 +155,13 @@ def generate_map_using_prefabs (map_properties):
         startheight = random.randint(6, 8) * 10
         endheight = 100 - startheight
     
-    fliptype = random.randint(0, 2)
-    if(width > height):
-        fliptype = random.choice([0, 2])
-    if(height > width):
-        fliptype = random.choice([1, 2])
-
-    FlipName = ["Horizontal", "Vertical", "Quad"]
-
     print("Map Statistics: ")
     print("\tSeed: " + str(map_properties["seed"]))
     print("\twidth: " + str(map_properties["mapsizex"]))
     print("\theight: " + str(map_properties["mapsizey"]))
     print("\tstartheight: " + str(startheight))
     print("\tendheight: " + str(endheight))
-    print("\tfliptype: " + FlipName[fliptype])
-
+    
     #build the basic map:
     #cubic spline for edges
     def cubic(val, xo, yo, xt, yt, dbg=0):
@@ -290,109 +288,13 @@ def generate_map_using_prefabs (map_properties):
         print("prefab placed at: (" + str(xplace) + ", " + str(yplace) + ")")
 
         n = n + 1
-    #flip the map
-    if(fliptype == 0):
-        n = 0
-        while n < height:
-            m = 0
-            while m < (width / 2):
-                genmap[n][(width - 1) - m] = genmap[n][m]
-                m = m + 1
-            n = n + 1
-    if(fliptype == 1):
-        n = 0
-        while n < (height / 2):
-            m = 0
-            while m < width:
-                genmap[(height - 1) - n][m] = genmap[n][m]
-                m = m + 1
-            n = n + 1
-    if(fliptype == 2):
-        n = 0
-        while n < (height / 2):
-            m = 0
-            while m < (width / 2):
-                genmap[(height - 1) - n][m] = genmap[n][m]
-                genmap[n][(width - 1) - m] = genmap[n][m]
-                genmap[(height - 1) - n][(width - 1) - m] = genmap[n][m]
-                m = m + 1
-            n = n + 1
-
-    #blur based on fliptype to make edges a bit nicer
-    blurrad = 10 #blurs all pix around 20 units of the pixel
-
-    def AverageCoordsInCircle(keyx, keyy, coords, blurradius):
-        boundy = blurradius
-        boundx = blurradius
-        n = keyy - boundy
-        totval = 0
-        cnt = 0
-        while (n < (keyy + boundy)):
-            m = keyx - boundx
-            while (m < (keyx + boundx)):
-                distval = 0
-                hgval = 0
-                nux = clamp(m, 0, len(coords[0]) - 1)
-                nuy = clamp(n, 0, len(coords) - 1)
-                distval = pow(pow(keyx - m, 2) + pow(keyy - n, 2), 0.5)
-                hgval = coords[nuy][nux]
-                if(distval <= blurradius):
-                    totval = totval + hgval
-                    cnt = cnt + 1
-                m = m + 1
-            n = n + 1
-        if(cnt > 0):
-            totval = totval / cnt
-        else:
-            nux = clamp(keyx, 0, len(coords[0]) - 1)
-            nuy = clamp(keyy, 0, len(coords) - 1)
-            totval = coords[nuy][nux]
-        return totval
-    print("blurring")
-    #going to clamp this
-    scaleblur = 20
-    if(fliptype == 0) or (fliptype == 2):
-        n = 0
-        while (n < height):
-            m = width // 2 - scaleblur
-            while(m < (width // 2 + scaleblur)):
-                dst = max(-1 * abs(m - width // 2) + 20, 0)
-                genmap[n][m] = AverageCoordsInCircle(m, n, genmap, dst)
-                m = m + 1
-            n = n + 1
-    if(fliptype == 1) or (fliptype == 2):
-        n = height // 2 - scaleblur
-        while (n < (height // 2 + scaleblur)):
-            m = 0
-            while(m < width):
-                dst = max(-1 * abs(n - height // 2) + 20, 0)
-                genmap[n][m] = AverageCoordsInCircle(m, n, genmap, dst)
-                m = m + 1
-            n = n + 1
-
-    #Global blur. readded in addition to clamped blur to smooth added terrain chunks
-    n = 0
-    while(n < height):
-        m = 0
-        while (m < width):
-            genmap[n][m] = AverageCoordsInCircle(m, n, genmap, 3)
-            m = m + 1
-        n = n + 1
 
     print("prefab generation finished")
 
-    return genmap, fliptype
+    return genmap
 
 if __name__ == "__main__":
     print("This isn't meant to be run by itself, it's imported into srmg_1.py")
-    print("Running to debug")
-    map_properties = {
-        "mapsizex": 12,
-        "mapsizey": 12,
-        "seed": 333666999,
-        "numplayers": 8,
-        "generation_type": "prefab"     #normal, prefab, voronoi
-        }
-    genmap = generate_map_using_prefabs(map_properties)
+    print("There's too many inputs required for this script, run srmg_1.py")
     #print(str(genmap))
     print("finished")

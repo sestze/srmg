@@ -4,7 +4,15 @@
 #Creates a set of paths and fills in the gaps between with unbuildable highground
 
 #How does this work, step by step?
-#   - 
+#   - Paths are formed by cubic splines from positions on the map to center points
+#   - Anything not within a set radius of the spline points are considered oob
+#   - Height of in-path areas are defined by a spline
+#   - Height of out-of-path areas are defined by height and summated periodic function and distance from threshold
+
+#Issues:
+#   - we're always in a hole
+#   - quads are close to 100% fucked 100% of the time
+#   - We need to add fliptype 2 and 3, and reset fliptype 2 to be for 4 and 5.
 
 import random
 import struct
@@ -14,7 +22,7 @@ import os
 
 from PIL import Image
 
-def generate_map_using_paths (map_properties):
+def generate_map_using_paths (map_properties, start_positions, fliptype):
     #set up some variables
     width = int(map_properties["mapsizex"]) * 64 + 1
     height = int(map_properties["mapsizey"]) * 64 + 1
@@ -22,19 +30,18 @@ def generate_map_using_paths (map_properties):
 
     startheight = 30 + random.randint(1, 2) * 10 * pow(-1, random.randint(0, 1))
     endheight = 60 - startheight
-    startspline = 0
-    endspline = 0
+    startspline = random.uniform(3/32, 7/32)
+    endspline = random.uniform(9/32, 15/32)
 
-    numpaths = random.randint(3, 6)
-    thresh = (70 - (numpaths - 3) * 10) * (int(map_properties["mapsizex"]) + int(map_properties["mapsizey"])) // 24
+    if(fliptype == 0):
+        startspline = int(startspline * width)
+    if(fliptype == 1):
+        endspline = int(endspline * width)
 
-    fliptype = random.randint(0, 2)
-    if(width > height):
-        fliptype = random.choice([0, 2])
-    if(height > width):
-        fliptype = random.choice([1, 2])
-
-    FlipName = ["Horizontal", "Vertical", "Quad"]
+    numpaths = random.randint(4, 7)
+    thresh = 65
+    thresh = thresh - (numpaths - 3) * 10
+    thresh = (thresh * (int(map_properties["mapsizex"]) + int(map_properties["mapsizey"]))) // 24
 
     print("Map Statistics: ")
     print("\tSeed: " + str(map_properties["seed"]))
@@ -42,7 +49,6 @@ def generate_map_using_paths (map_properties):
     print("\theight: " + str(map_properties["mapsizey"]))
     print("\tstartheight: " + str(startheight))
     print("\tendheight: " + str(endheight))
-    print("\tfliptype: " + FlipName[fliptype])
     print("\tthresh: " + str(thresh))
     print("\tnumpaths: " + str(numpaths))
 
@@ -71,59 +77,12 @@ def generate_map_using_paths (map_properties):
     #start points
     path_points = []
     
-    backline = min(4, map_properties["numplayers"])
-    frontline = max(map_properties["numplayers"] - backline, 0)
-    
-    if(fliptype == 0):
-        xset = max(int(width / (map_properties["mapsizex"] * 2)), int(width / 16))
-        n = 0
-        while n < backline:
-            yset = int(height * (n + 1) / (backline + 1))
-            path_points.append([xset, yset])
-            n = n + 1
-        n = 0
-        xset = max(int(3 * width / (map_properties["mapsizex"] * 2)), int(3 * width / 16))
-        while n < frontline:
-            yset = int(height * (n + 1) / (frontline + 1))
-            path_points.append([xset, yset])
-            n = n + 1
-        startspline = random.randint(int(xset * 1.1), int(width // 2 - xset * 1.1))
-        endspline = random.randint(startspline + xset // 2, width // 2)
-    elif(fliptype == 1):
-        yset = max(int(height / (map_properties["mapsizey"] * 2)), int(height / 16))
-        n = 0
-        while n < backline:
-            xset = int(width * (n + 1) / (backline + 1))
-            path_points.append([xset, yset])
-            n = n + 1
-        n = 0
-        yset = max(int(3 * height / (map_properties["mapsizex"] * 2)), int(3 * height / 16))
-        while n < frontline:
-            xset = int(width * (n + 1) / (frontline + 1))
-            path_points.append([xset, yset])
-            n = n + 1
-        startspline = random.randint(int(yset * 1.1), int(height // 2 - yset * 1.1))
-        endspline = random.randint(startspline + yset // 2, width // 2)
-    elif(fliptype == 2):
-        radius = 3 * max(int(min(width, height) / (min(map_properties["mapsizex"], map_properties["mapsizey"]) * 2)), int(min(width, height) / 16))
-        n = 0
-        while n < backline:
-            #top left/bottom left
-            xset = int(radius * math.cos((math.pi / 2) * (n + 1) / (backline + 1)))
-            yset = int(radius * math.sin((math.pi / 2) * (n + 1) / (backline + 1)))
-            path_points.append([xset, yset])
-            n = n + 1
-        radius = int(1.5 * max(3 * int(min(width, height) / (2 * min(map_properties["mapsizex"], map_properties["mapsizey"]))), int(3 * min(width, height) / 16)))
-        n = 0
-        while n < frontline:
-            #top left/bottom left
-            xset = int(radius * math.cos((math.pi / 2) * (n + 1) / (backline + 1)))
-            yset = int(radius * math.sin((math.pi / 2) * (n + 1) / (backline + 1)))
-            path_points.append([xset, yset])
-            n = n + 1
-        startspline = random.randint(int(radius * 1.1), pow(pow(width, 2) + pow(height, 2), 0.5) // 2 - int(radius * 1.1))
-        endspline = random.randint(startspline + radius // 2, int(pow(pow(width, 2) + pow(height, 2), 0.5))- int(radius * 1.1))
-
+    n = 0
+    while(n < len(start_positions)):
+        xvar = start_positions[n][0] * width
+        yvar = start_positions[n][1] * height
+        path_points.append([xvar, yvar])
+        n = n + 1
     #defining the splines
     spline_startpoints = []
     spline_endpoints = []
@@ -138,7 +97,7 @@ def generate_map_using_paths (map_properties):
             #end position
             wiggle = int((height / (2 * (numpaths + 1))) * 0.8)
             yset = int(height * (n + 1) / (numpaths + 1)) + random.randint(-1 * wiggle, wiggle)
-            xset = width // 2 + thresh
+            xset = width // 2
             spline_endpoints.append([xset, yset])
             n = n + 1
     if(fliptype == 1):
@@ -152,7 +111,7 @@ def generate_map_using_paths (map_properties):
             #ending position
             wiggle = int((width / (2 * (numpaths + 1))) * 0.8)
             xset = int(width * (n + 1) / (numpaths + 1)) + random.randint(-1 * wiggle, wiggle)
-            yset = height // 2 + thresh
+            yset = height // 2
             spline_endpoints.append([xset, yset])
             n = n + 1
     if(fliptype == 2):
@@ -167,7 +126,7 @@ def generate_map_using_paths (map_properties):
             
             wiggle = math.pi / (4 * numpaths + 1) * random.uniform(-1, 1)
             #ending position
-            radius = pow(pow(3 * width // 4, 2) + pow(3 * height // 4, 2), 0.5)
+            radius = pow(pow(width // 2, 2) + pow(height // 2, 2), 0.5)
             xset = int(radius * math.cos(wiggle + (math.pi / 2) * (n + 1) / (numpaths + 1)))
             yset = int(radius * math.sin(wiggle + (math.pi / 2) * (n + 1) / (numpaths + 1)))
             spline_endpoints.append([xset, yset])
@@ -188,6 +147,8 @@ def generate_map_using_paths (map_properties):
                 vary = cubic(varx, spline_startpoints[n][0], spline_startpoints[n][1], spline_endpoints[n][0], spline_endpoints[n][1])
                 path_points.append([varx, vary])
                 m = m + 1
+            path_points.append([spline_endpoints[n][0] + thresh / 2, spline_endpoints[n][1]])
+            path_points.append([spline_endpoints[n][0] + thresh, spline_endpoints[n][1]])
             n = n + 1
     if(fliptype == 1):
         n = 0
@@ -201,6 +162,8 @@ def generate_map_using_paths (map_properties):
                 varx = cubic(vary, spline_startpoints[n][1], spline_startpoints[n][0], spline_endpoints[n][1], spline_endpoints[n][0])
                 path_points.append([varx, vary])
                 m = m + 1
+            path_points.append([spline_endpoints[n][0], spline_endpoints[n][1] + thresh / 2])
+            path_points.append([spline_endpoints[n][0], spline_endpoints[n][1] + thresh])
             n = n + 1
     if(fliptype == 2):
         n = 0
@@ -234,7 +197,7 @@ def generate_map_using_paths (map_properties):
         n = n + 1
     cosstrtot = (cosstrtot + sinstrtot) / 2
 
-    tv = random.randint(2, 8) * 5
+    tv = thresh * random.randint(1, 3) / 10
     bv = random.randint(1, 5) * 3
 
     heightdiff = 10 + random.randint(0, 6) * 5
@@ -281,12 +244,14 @@ def generate_map_using_paths (map_properties):
             #adding thresh variance for more interesting path generation
             r = 0
             while(r < cossum):
-                threshvariance = threshvariance + math.cos(math.pi * (cosvars[r][1] * m + cosvars[r][0]) / 270) * cosvars[r][2]
-                threshvariance = threshvariance + math.sin(math.pi * (sinvars[r][1] * n + sinvars[r][0]) / 270) * sinvars[r][2]
-                bumpvariance = bumpvariance + math.cos(math.pi * (sinvars[r][1] * n + sinvars[r][0]) / 540) * sinvars[r][2]
-                bumpvariance = bumpvariance + math.sin(math.pi * (cosvars[r][1] * m + cosvars[r][0]) / 540) * cosvars[r][2]
+                tvdiv = 270 * (map_properties["mapsizex"] + map_properties["mapsizey"]) / 24
+                bvdiv = 540 * (map_properties["mapsizex"] + map_properties["mapsizey"]) / 24
+                threshvariance = threshvariance + math.cos(math.pi * (cosvars[r][1] * m + cosvars[r][0]) / tvdiv) * cosvars[r][2]
+                threshvariance = threshvariance + math.sin(math.pi * (sinvars[r][1] * n + sinvars[r][0]) / tvdiv) * sinvars[r][2]
+                bumpvariance = bumpvariance + math.cos(math.pi * (sinvars[r][1] * n + sinvars[r][0]) / bvdiv) * sinvars[r][2]
+                bumpvariance = bumpvariance + math.sin(math.pi * (cosvars[r][1] * m + cosvars[r][0]) / bvdiv) * cosvars[r][2]
                 r = r + 1
-            threshvariance = threshvariance / cosstrtot * tv * (map_properties["mapsizex"] + map_properties["mapsizey"]) // 24
+            threshvariance = threshvariance / cosstrtot * tv
             bumpvariance = bumpvariance / cosstrtot * bv
             #scan paths
             r = 0
@@ -317,111 +282,13 @@ def generate_map_using_paths (map_properties):
             m = m + 1
         genmap.append(row)
         n = n + 1
-    print("map flood finished")
-    #flip the map
-    if(fliptype == 0):
-        n = 0
-        while n < height:
-            m = 0
-            while m < (width / 2):
-                genmap[n][(width - 1) - m] = genmap[n][m]
-                m = m + 1
-            n = n + 1
-    if(fliptype == 1):
-        n = 0
-        while n < (height / 2):
-            m = 0
-            while m < width:
-                genmap[(height - 1) - n][m] = genmap[n][m]
-                m = m + 1
-            n = n + 1
-    if(fliptype == 2):
-        n = 0
-        while n < (height / 2):
-            m = 0
-            while m < (width / 2):
-                genmap[(height - 1) - n][m] = genmap[n][m]
-                genmap[n][(width - 1) - m] = genmap[n][m]
-                genmap[(height - 1) - n][(width - 1) - m] = genmap[n][m]
-                m = m + 1
-            n = n + 1
-    print("flipping finished")
-    #blur based on fliptype to make edges a bit nicer
-
-    def AverageCoordsInCircle(keyx, keyy, coords, blurradius):
-        boundy = blurradius
-        boundx = blurradius
-        n = keyy - boundy
-        totval = 0
-        cnt = 0
-        while (n < (keyy + boundy)):
-            m = keyx - boundx
-            while (m < (keyx + boundx)):
-                distval = 0
-                hgval = 0
-                nux = clamp(m, 0, len(coords[0]) - 1)
-                nuy = clamp(n, 0, len(coords) - 1)
-                distval = pow(pow(keyx - m, 2) + pow(keyy - n, 2), 0.5)
-                hgval = coords[nuy][nux]
-                if(distval <= blurradius):
-                    totval = totval + hgval
-                    cnt = cnt + 1
-                m = m + 1
-            n = n + 1
-        if(cnt > 0):
-            totval = totval / cnt
-        else:
-            nux = clamp(keyx, 0, len(coords[0]) - 1)
-            nuy = clamp(keyy, 0, len(coords) - 1)
-            totval = coords[nuy][nux]
-        return totval
-    print("blurring")
-    #going to clamp this
-    #not really necessary, so we're just setting it to zero right now
-    scaleblur = 0
-    if(fliptype == 0) or (fliptype == 2):
-        n = 0
-        while (n < height):
-            m = width // 2 - scaleblur
-            while(m < (width // 2 + scaleblur)):
-                dst = max(-1 * abs(m - width // 2) + 20, 0)
-                genmap[n][m] = AverageCoordsInCircle(m, n, genmap, dst)
-                m = m + 1
-            n = n + 1
-    if(fliptype == 1) or (fliptype == 2):
-        n = height // 2 - scaleblur
-        while (n < (height // 2 + scaleblur)):
-            m = 0
-            while(m < width):
-                dst = max(-1 * abs(n - height // 2) + 20, 0)
-                genmap[n][m] = AverageCoordsInCircle(m, n, genmap, dst)
-                m = m + 1
-            n = n + 1
-
-    #Global blur.
-    blurrad = 3 #blurs all pix around blurrad units of the pixel
-    n = 0
-    while(n < height):
-        m = 0
-        while (m < width):
-            genmap[n][m] = AverageCoordsInCircle(m, n, genmap, blurrad)
-            m = m + 1
-        n = n + 1
-
     print("path generation finished")
 
-    return genmap, fliptype
+    return genmap
 
 if __name__ == "__main__":
     print("This isn't meant to be run by itself, it's imported into srmg_1.py")
-    print("Running to debug")
-    map_properties = {
-        "mapsizex": 12,
-        "mapsizey": 12,
-        "seed": 333666999,
-        "numplayers": 8,
-        "generation_type": "paths"     #normal, prefab, voronoi, paths
-        }
-    genmap = generate_map_using_paths(map_properties)
+    print("Too many inputs, really. Need to run srmg_1.py")
+    #genmap = generate_map_using_paths(map_properties)
     #print(str(genmap))
     print("finished")

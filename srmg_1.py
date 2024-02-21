@@ -40,6 +40,195 @@ import path_generation.path_generation
 #from typing import BinaryIO, List, Tuple
 from PIL import Image
 
+# mirror_array, takes in the genmap and fliptype and mirrors according to the fliptype
+#   - 0 - Horizontal
+#   - 1 - Vertical
+#   - 2 - TL/BR
+#   - 3 - BL/TR
+#   - 4 - Quads (corners)
+#   - 5 - Quads (centers)
+
+def mirror_array ( inmap, fliptype ):
+    genmap_copy = inmap.copy()
+    height = len(inmap)
+    width = len(inmap[0])
+    print("mirroring...")
+    if(fliptype == 0):
+        #horizontal
+        n = 0
+        while(n < height):
+            m = 0
+            while (m < (width / 2)):
+                genmap_copy[n][(width - 1) - m] = inmap[n][m]
+                m = m + 1
+            n = n + 1
+    if(fliptype == 1):
+        #vertical
+        n = 0
+        while n < (height / 2):
+            m = 0
+            while m < width:
+                genmap_copy[(height - 1) - n][m] = inmap[n][m]
+                m = m + 1
+            n = n + 1
+    if(fliptype == 2):
+        #top left to bottom right
+        n = 0
+        while n < height:
+            m = 0
+            while n < (height - (height / width) * m):
+                genmap_copy[(height - 1) - m][(width - 1) - n] = inmap[n][m]
+                m = m + 1
+            n = n + 1
+    if(fliptype == 3):
+        #bottom left to top right
+        n = 0
+        while n < height:
+            m = 0
+            while n > ((height / width) * m):
+                genmap_copy[m][n] = inmap[n][m]
+                m = m + 1
+            n = n + 1
+    if(fliptype == 4):
+        #quads
+        n = 0
+        while n < (height / 2):
+            m = 0
+            while m < (width / 2):
+                genmap_copy[(height - 1) - n][m] = inmap[n][m]
+                genmap_copy[n][(width - 1) - m] = inmap[n][m]
+                genmap_copy[(height - 1) - n][(width - 1) - m] = inmap[n][m]
+                m = m + 1
+            n = n + 1
+    if(fliptype == 5):
+        #crosses
+        n = 0
+        while n < (height):
+            m = 0
+            while m < (-1 * (width / height) * abs(n - height / 2) + width / 2):
+                genmap_copy[m][n] = inmap[n][m]
+                genmap_copy[(height - 1) - n][(width - 1) - m] = inmap[n][m]
+                genmap_copy[(height - 1) - m][(width - 1) - n] = inmap[n][m]
+                m = m + 1
+            n = n + 1
+    print("mirroring complete")        
+    return genmap_copy
+
+#blurs the map according to fliptype to remove "seams" from mirroring and smooth out terrain changes.
+def blurmap ( genmap, general, seam, fliptype ):
+    height = len(genmap)
+    width = len(genmap[0])
+
+    genmap_copy = genmap.copy()
+
+    def clamp(val, l, u):
+        if l > val:
+            return l
+        if u < val:
+            return u
+        return val
+    
+    def AverageCoordsInCircle(keyx, keyy, coords, blurradius):
+        boundy = blurradius
+        boundx = blurradius
+        n = keyy - boundy
+        totval = 0
+        cnt = 0
+        while (n < (keyy + boundy)):
+            m = keyx - boundx
+            while (m < (keyx + boundx)):
+                distval = 0
+                hgval = 0
+                nux = clamp(m, 0, len(coords[0]) - 1)
+                nuy = clamp(n, 0, len(coords) - 1)
+                distval = pow(pow(keyx - m, 2) + pow(keyy - n, 2), 0.5)
+                hgval = coords[nuy][nux]
+                if(distval <= blurradius):
+                    totval = totval + hgval
+                    cnt = cnt + 1
+                m = m + 1
+            n = n + 1
+        if(cnt > 0):
+            totval = totval / cnt
+        else:
+            nux = clamp(keyx, 0, len(coords[0]) - 1)
+            nuy = clamp(keyy, 0, len(coords) - 1)
+            totval = coords[nuy][nux]
+        return totval
+    
+    print("blurring")
+    
+    scaleblur = seam
+    if(scaleblur > 0):
+        #horizontal or quad
+        if(fliptype == 0) or (fliptype == 4):
+            n = 0
+            while (n < height):
+                m = width // 2 - scaleblur
+                while(m < (width // 2 + scaleblur)):
+                    dst = max(-1 * abs(m - width // 2) + scaleblur, 0)
+                    genmap_copy[n][m] = AverageCoordsInCircle(m, n, genmap, dst)
+                    m = m + 1
+                n = n + 1
+        #vertical or quad
+        if(fliptype == 1) or (fliptype == 4):
+            n = height // 2 - scaleblur
+            while (n < (height // 2 + scaleblur)):
+                m = 0
+                while(m < width):
+                    dst = max(-1 * abs(n - height // 2) + scaleblur, 0)
+                    genmap_copy[n][m] = AverageCoordsInCircle(m, n, genmap, dst)
+                    m = m + 1
+                n = n + 1
+        #top left to bottom right or cross
+        if(fliptype == 2) or (fliptype == 5):
+            n = 0
+            while (n < height):
+                m = 0
+                while (m < width):
+                    #oh boy, time for algebra
+                    #i did it on a piece of scratch paper. trust me.
+                    xval = (pow(height, 2) * width + m * pow(height, 2) - n * width * height) / (pow(width, 2) + pow(height, 2))
+                    yval = height - width / height * xval
+
+                    dst = pow(pow(xval - m, 2) + pow(yval - n, 2), 0.5)
+                    if(dst < scaleblur):
+                        adst = max(-1 * dst + scaleblur, 0)
+                        genmap_copy[n][m] = AverageCoordsInCircle(m, n, genmap, adst)
+                    m = m + 1
+                n = n + 1
+        #bottom left to top right or cross
+        if(fliptype == 3) or (fliptype == 5):
+            n = 0
+            while (n < height):
+                m = 0
+                while (m < width):
+                    #again, more algebra
+                    #i did it on a piece of scratch paper. trust me.
+                    xval = (height * width * n + pow(width, 2) * m) / (pow(width, 2) + pow(height, 2))
+                    yval = height / width * xval
+
+                    dst = pow(pow(xval - m, 2) + pow(yval - n, 2), 0.5)
+                    if(dst < scaleblur):
+                        adst = max(-1 * dst + scaleblur, 0)
+                        genmap_copy[n][m] = AverageCoordsInCircle(m, n, genmap, adst)
+                    m = m + 1
+                n = n + 1
+
+    #Global blur.
+    blurrad = general #blurs all pix around general units of the pixel
+    n = 0
+    while(n < height):
+        m = 0
+        while (m < width):
+            genmap_copy[n][m] = AverageCoordsInCircle(m, n, genmap, blurrad)
+            m = m + 1
+        n = n + 1
+
+    print("blurring complete")
+    
+    return genmap_copy
+
 def generate_heightmap(genmap, mult, minh):
     out = []
     # here's where we'd have to take the genmap and turn it into pixels.
@@ -57,612 +246,6 @@ def generate_heightmap(genmap, mult, minh):
         out.append(row)
         n = n + 1
     return out
-
-def generate_map_using_prefabs (map_properties):
-    #set up some variables
-    width = int(map_properties["mapsizex"]) * 64 + 1
-    height = int(map_properties["mapsizey"]) * 64 + 1
-    genmap = []
-
-    startheight = random.randint(0, 10) * 10
-    endheight = random.randint(0, 10) * 10
-    
-    fliptype = random.randint(0, 2)
-    if(width > height):
-        fliptype = random.choice([0, 2])
-    if(height > width):
-        fliptype = random.choice([1, 2])
-
-    FlipName = ["Horizontal", "Vertical", "Quad"]
-
-    print("Map Statistics: ")
-    print("\tSeed: " + str(map_properties["seed"]))
-    print("\twidth: " + str(map_properties["mapsizex"]))
-    print("\theight: " + str(map_properties["mapsizey"]))
-    print("\tstartheight: " + str(startheight))
-    print("\tendheight: " + str(endheight))
-
-    #build the basic map:
-    #cubic spline for edges
-    def cubic(val, xo, yo, xt, yt, dbg=0):
-        if(dbg != 0):
-            print("cubic spline function: " + str(val) + ", " + str(xo) + ", " + str(yo) + ", " + str(xt) + ", " + str(yt))
-        A = (-2 * (yt - yo)) / pow((xt - xo), 3)
-        B = 3 * (yt - yo) / pow((xt - xo), 2)
-        C = 0
-        D = yo
-        xin = val - xo
-
-        retval = A * pow(xin, 3) + B * pow(xin, 2) + C * xin + D
-        if(dbg != 0):
-            print("Output: " + str(retval))
-        return retval
-
-    def clamp(val, l, u):
-        if l > val:
-            return l
-        if u < val:
-            return u
-        return val
-
-    n = 0
-    while n < height:
-        m = 0
-        row = []
-        while m < width:
-            inval = clamp(m, 1/8 * width, 3/8 * width)
-            height = cubic(inval, 1/8 * width, startheight, 3/8 * width, endheight) #defaults to horizontal fliptype
-            if(fliptype == 1):
-                inval = clamp(n, 1/8 * height, 3/8 * height)
-                height = cubic(inval, 1/8 * height, startheight, 3/8 * height, endheight)
-            if(fliptype == 2):
-                dst = pow(pow(n,2) + pow(m,2), 0.5)
-                inval = clamp(dst, 1/8 * (width + height) / 2, 3/8 * (width + height) / 2)
-                height = cubic(inval, 1/8 * (width + height) / 2, startheight, 3/8 * (width + height) / 2, endheight)
-            row.append(height)
-            m = m + 1
-        genmap.append(row)
-        n = n + 1
-
-    #load prefabs
-        
-    #add in prefabs
-
-    #flip the map
-    if(fliptype == 0):
-        n = 0
-        while n < height:
-            m = 0
-            while m < (width / 2):
-                genmap[n][(width - 1) - m] = genmap[n][m]
-                m = m + 1
-            n = n + 1
-    if(fliptype == 1):
-        n = 0
-        while n < (height / 2):
-            m = 0
-            while m < width:
-                genmap[(height - 1) - n][m] = genmap[n][m]
-                m = m + 1
-            n = n + 1
-    if(fliptype == 2):
-        n = 0
-        while n < (height / 2):
-            m = 0
-            while m < (width / 2):
-                genmap[(height - 1) - n][m] = genmap[n][m]
-                genmap[n][(width - 1) - m] = genmap[n][m]
-                genmap[(height - 1) - n][(width - 1) - m] = genmap[n][m]
-                m = m + 1
-            n = n + 1
-
-    return genmap, fliptype
-
-def generate_map (map_properties):
-    #blots didn't work, trying something simpler than splines but more complicated than blots
-    width = map_properties["mapsizex"] * 64 + 1
-    height = map_properties["mapsizey"] * 64 + 1
-    
-    maxflats = 128    #For now, I think 8 is fine.
-    blots = random.randint(14, 24) - 4
-    blotleast = random.randint(1, 2) * 20
-    blotmost = random.randint(3, 6) * 20
-    blotbuild = random.randint(0, 2)    #0 - build up, 1 - scoop, 2 - break down.
-    #hdiv = random.randint(1,2) * 5       #Height division, multiply by. Makes it in chunks of hdiv.
-    bmul = 1
-    if(blotbuild != 1):
-        bmul = 2
-    blurradius = random.randint(1, 3) * 16 * bmul
-    #divby = int((random.randint(1, 4) * 128) / maxflats)       #divby adjusts coordinate neighbors
-    
-    #percellchange = random.randint(1, 4)    #per cell, how much can height change
-    #steepmultiplier = 4  #how brutal is the logistics curve? Deprecated, using cubic splines
-
-    fliptype = random.randint(0, 2) #0 is horizontal, 1 is vertical, 2 is quads
-    if(width > height):
-        fliptype = random.choice([0, 2])
-    elif(height > width):
-        fliptype = random.choice([1, 2])
-
-    if(fliptype == 2):
-        blots = blots - 4
-
-    FlipName = ["Horizontal", "Vertical", "Quad"]
-    BlotName = ["Build-Up", "Scoop", "Break-Down"]
-
-    print("Map Statistics: ")
-    print("\tSeed: " + str(map_properties["seed"]))
-    print("\twidth: " + str(map_properties["mapsizex"]))
-    print("\theight: " + str(map_properties["mapsizey"]))
-    print("\tfliptype: " + FlipName[fliptype])
-    print("\tblottype: " + BlotName[blotbuild])
-    print("\tblots: " + str(blots))
-    print("\tblotleast: " + str(blotleast))
-    print("\tblotmost: " + str(blotmost))
-    print("\tblurradius: " + str(blurradius))
-    print("\tmaxflats = " + str(maxflats))
-    #print("\thdiv = " + str(hdiv))
-    #print("\tdivby = " + str(divby))
-    #print("\tpercellchange = " + str(percellchange))
-    #print("\tsteepmultiplier = " + str(steepmultiplier))
-
-    genmap = []
-    clampw = width - 64
-    clamph = height - 64
-
-    coords = []
-
-    def hdivs(num):
-        retval = random.randint(0, int(100 / num)) * num
-        return retval
-
-    def makeoval ( density, xm, ym, xc, yc, xs, ys ):
-        oval = []
-        xdiv = int(xm / density)
-        ydiv = int(ym / density)
-        n = 0
-        while n < ym:
-            m = 0
-            while m < xm:
-                ovalfunc = pow(m - xc, 2) / pow(xs, 2) + pow(n - yc, 2) / pow(ys, 2)
-                if (ovalfunc <= 1):
-                    oval.append([m, n])
-                m = m + xdiv
-            n = n + ydiv
-
-        return oval
-
-    #blotorder
-    blotorder = [0, 50, 100]
-    if(blotbuild == 1):
-        blotorder = [50, 0, 100]
-    elif(blotbuild == 2):
-        blotorder = [100, 50, 0]
-
-    #necessary to prevent errors from edge values.
-    xdivval = int(width/maxflats)
-    ydivval = int(height/maxflats)
-
-    #it's harder to mirror if we're starting at 0,0 and using non-flush divs
-    starth = int(height/2)
-    while(starth > ydivval):
-        starth = starth - ydivval
-    startw = int(width/2)
-    while(startw > xdivval):
-        startw = startw - xdivval
-
-    print("startw: " + str(startw) + " starth: " + str(starth))    
-    n = starth
-    while n < height:
-        m = startw
-        row = []
-        while m < width:
-            row.append([m, n, blotorder[0]])
-            m = m + xdivval
-        #row.append([width, n, blotorder[0]])
-        coords.append(row)
-        n = n + ydivval
-
-    n = 1
-    while n < 3:
-        m = 0
-        while m < blots:
-            xc = startw + int(random.randint(0, int(width/2)) / xdivval) * xdivval
-            yc = starth + int(random.randint(0, height) / ydivval) * ydivval
-            incby = 1
-            if(fliptype == 1):
-                xc = startw + int(random.randint(0, width) / xdivval) * xdivval
-                yc = starth + int(random.randint(0, int(height / 2)) / ydivval) * ydivval
-            if(fliptype == 2):
-                yc = starth + int(random.randint(0, int(height / 2)) / ydivval) * ydivval
-                incby = 2
-
-            xs = random.randint(blotleast, blotmost)
-            ys = random.randint(blotleast, blotmost)
-            #oval = makeoval ( maxflats, width, height, xc, yc, xs, ys)
-            p = 0
-            while p < len(coords):
-                q = 0
-                while q < len(coords[p]):
-                    ovalfunc = pow(coords[p][q][0] - xc, 2) / pow(xs, 2) + pow(coords[p][q][1] - yc, 2) / pow(ys, 2)
-                    if(ovalfunc <= 1):
-                        xval = coords[p][q][0]
-                        yval = coords[p][q][1]
-                        coords[p][q] = [xval, yval, blotorder[n]]
-                    q = q + 1
-                p = p + 1
-            m = m + incby
-        n = n + 1
-
-    #jimmy startpositions
-    xcoord = width
-    ycoord = height
-        
-    backline = min(4, map_properties["numplayers"])
-    frontline = map_properties["numplayers"] - backline
-
-    if(fliptype == 0):
-        xset = min(int(xcoord / (map_properties["mapsizex"] * 2)), int(xcoord / 16))
-        n = 0
-        while n < backline:
-            yset = int(ycoord * (n + 1) / (backline + 1))
-            xs = random.randint(blotleast, blotmost)
-            ys = random.randint(blotleast, blotmost)
-            p = 0
-            while p < len(coords):
-                q = 0
-                while q < len(coords[p]):
-                    ovalfunc = pow(coords[p][q][0] - xset, 2) / pow(xs, 2) + pow(coords[p][q][1] - yset, 2) / pow(ys, 2)
-                    if(ovalfunc <= 1):
-                        xval = coords[p][q][0]
-                        yval = coords[p][q][1]
-                        coords[p][q] = [xval, yval, blotorder[0]]
-                    q = q + 1
-                p = p + 1
-            n = n + 1
-        xset = min(int(4 * xcoord / (map_properties["mapsizex"] * 2)), int(4 * xcoord / 16))
-        n = 0
-        while n < frontline:
-            yset = int(ycoord * (n + 1) / (frontline + 1))
-            xs = random.randint(blotleast, blotmost)
-            ys = random.randint(blotleast, blotmost)
-            p = 0
-            while p < len(coords):
-                q = 0
-                while q < len(coords[p]):
-                    ovalfunc = pow(coords[p][q][0] - xset, 2) / pow(xs, 2) + pow(coords[p][q][1] - yset, 2) / pow(ys, 2)
-                    if(ovalfunc <= 1):
-                        xval = coords[p][q][0]
-                        yval = coords[p][q][1]
-                        coords[p][q] = [xval, yval, blotorder[0]]
-                    q = q + 1
-                p = p + 1
-            n = n + 1
-    elif(fliptype == 1):
-        yset = min(int(ycoord / (map_properties["mapsizey"] * 2)), int(ycoord / 16))
-        n = 0
-        while n < backline:
-            xset = int(xcoord * (n + 1) / (backline + 1))
-            xs = random.randint(blotleast, blotmost)
-            ys = random.randint(blotleast, blotmost)
-            p = 0
-            while p < len(coords):
-                q = 0
-                while q < len(coords[p]):
-                    ovalfunc = pow(coords[p][q][0] - xset, 2) / pow(xs, 2) + pow(coords[p][q][1] - yset, 2) / pow(ys, 2)
-                    if(ovalfunc <= 1):
-                        xval = coords[p][q][0]
-                        yval = coords[p][q][1]
-                        coords[p][q] = [xval, yval, blotorder[0]]
-                    q = q + 1
-                p = p + 1
-            n = n + 1
-        yset = min(int(4 * ycoord / (map_properties["mapsizey"] * 2)), int(4 * ycoord / 16))
-        n = 0
-        while n < frontline:
-            xset = int(xcoord * (n + 1) / (frontline + 1))
-            xs = random.randint(blotleast, blotmost)
-            ys = random.randint(blotleast, blotmost)
-            p = 0
-            while p < len(coords):
-                q = 0
-                while q < len(coords[p]):
-                    ovalfunc = pow(coords[p][q][0] - xset, 2) / pow(xs, 2) + pow(coords[p][q][1] - yset, 2) / pow(ys, 2)
-                    if(ovalfunc <= 1):
-                        xval = coords[p][q][0]
-                        yval = coords[p][q][1]
-                        coords[p][q] = [xval, yval, blotorder[0]]
-                    q = q + 1
-                p = p + 1
-            n = n + 1
-    elif(fliptype == 2):
-        radius = 4 * min(int(min(xcoord, ycoord) / (min(map_properties["mapsizex"], map_properties["mapsizey"]) * 2)), int(min(xcoord, ycoord) / 16))
-        n = 0
-        while n < backline:
-            xset = int(radius * math.cos((math.pi / 2) * (n + 1) / (backline + 1)))
-            yset = int(radius * math.sin((math.pi / 2) * (n + 1) / (backline + 1)))
-            xs = random.randint(blotleast, blotmost)
-            ys = random.randint(blotleast, blotmost)
-            p = 0
-            while p < len(coords):
-                q = 0
-                while q < len(coords[p]):
-                    ovalfunc = pow(coords[p][q][0] - xset, 2) / pow(xs, 2) + pow(coords[p][q][1] - yset, 2) / pow(ys, 2)
-                    if(ovalfunc <= 1):
-                        xval = coords[p][q][0]
-                        yval = coords[p][q][1]
-                        coords[p][q] = [xval, yval, blotorder[0]]
-                    q = q + 1
-                p = p + 1
-            n = n + 1
-        radius = int(1.5 * min(4 * int(min(xcoord, ycoord) / (2 * min(map_properties["mapsizex"], map_properties["mapsizey"]))), int(4 * min(xcoord, ycoord) / 16)))
-        n = 0
-        while n < frontline:
-            xset = int(radius * math.cos((math.pi / 2) * (n + 1) / (backline + 1)))
-            yset = int(radius * math.sin((math.pi / 2) * (n + 1) / (backline + 1)))
-            xs = random.randint(blotleast, blotmost)
-            ys = random.randint(blotleast, blotmost)
-            p = 0
-            while p < len(coords):
-                q = 0
-                while q < len(coords[p]):
-                    ovalfunc = pow(coords[p][q][0] - xset, 2) / pow(xs, 2) + pow(coords[p][q][1] - yset, 2) / pow(ys, 2)
-                    if(ovalfunc <= 1):
-                        xval = coords[p][q][0]
-                        yval = coords[p][q][1]
-                        coords[p][q] = [xval, yval, blotorder[0]]
-                    q = q + 1
-                p = p + 1
-            n = n + 1
-
-    combinecoord = []
-    n = 0
-    while n < len(coords):
-        #row = []
-        ndivs = 0
-        m = 0
-        oskip = False
-        if((fliptype == 1) or (fliptype == 2)):
-            if (n >= int((len(coords) - 1)/2)):
-                q = n
-                while q < len(coords):
-                    p = 0
-                    while (p < len(coords[0])):
-                        xvar = coords[q][p][0]
-                        yvar = coords[q][p][1]
-                        zvar = coords[n][p][2]
-                        #tagrow.append([xvar, yvar, zvar])
-                        coords[q][p] = [xvar, yvar, zvar]
-                        p = p + 1
-                    #combinecoord.append(tagrow)
-                    q = q + 1
-                    n = n - 1
-                oskip = True
-        if(oskip == False):
-            while m < len(coords[0]):
-                skip = False
-                if((fliptype == 0) or (fliptype == 2)):
-                    if (m >= int((len(coords[0])-1) / 2)):
-                        q = m
-                        while m < len(coords[0]):
-                            xvar = coords[n][m][0]
-                            yvar = coords[n][m][1]
-                            zvar = coords[n][q][2]
-                            #row.append([xvar, yvar, zvar])
-                            coords[n][m] = [xvar, yvar, zvar]
-                            q = q - 1
-                            m = m + 1
-                        skip = True
-                if(skip == False):
-    ##                if((n == 0) and (m == 0)):
-    ##                    ndivs = hdivs(hdiv)
-    ##                    row.append([coordx[m], coordy[n], ndivs])
-    ##                elif((n == 0) and (m > 0)):
-    ##                    ndivs = min(max(row[m-1][2] + random.randint(-1 * percellchange, 1 * percellchange) * hdiv, 0), 100)
-    ##                    row.append([coordx[m], coordy[n], ndivs])
-    ##                elif((n > 0) and (m == 0)):
-    ##                    ndivs = min(max(combinecoord[n-1][m][2] + random.randint(-1 * percellchange, 1 * percellchange) * hdiv, 0), 100)
-    ##                    row.append([coordx[m], coordy[n], ndivs])
-    ##                else:
-    ##                    ndivs = min(max((row[m-1][2]+combinecoord[n-1][m][2]) / 2 + random.randint(-1 * percellchange, 1 * percellchange) * hdiv, 0), 100)
-    ##                    row.append([coordx[m], coordy[n], int(ndivs)])
-                    m = m + 1
-                else:
-                    m = len(coords[0])
-            #combinecoord.append(row)
-            n = n + 1
-        else:
-            n = len(coords)
-
-    #this fixes the right side - not sure why
-    n = int(len(coords)/2)-1
-    m = int(len(coords[n])/2)
-    q = m
-    while(m < len(coords[n])):
-        xvar = coords[n][m][0]
-        yvar = coords[n][m][1]
-        zvar = coords[n][q][2]
-        
-        coords[n][m] = [xvar, yvar, zvar]
-        m = m + 1
-        q = q - 1
-
-    combinecoord = coords.copy()
-
-    def AverageCoordsInCircle(keyx, keyy, coords, blurradius):
-        boundx = int(blurradius / xdivval) + 1
-        boundy = int(blurradius / ydivval) + 1
-        n = keyy - boundy
-        totval = 0
-        cnt = 0
-        while (n < (keyy + boundy)):
-            m = keyx - boundx
-            while (m < (keyx + boundx)):
-                distval = 0
-                hgval = 0
-                if((m < len(coords[0])) and (m >= 0)) and ((n < len(coords)) and (n >= 0)):
-                    distval = pow(pow(coords[keyy][keyx][0] - coords[n][m][0], 2) + pow(coords[keyy][keyx][1] - coords[n][m][1], 2), 0.5)
-                    hgval = coords[n][m][2]
-                else:
-                    nux = coords[keyy][keyx][0] + m * xdivval
-                    nuy = coords[keyy][keyx][1] + n * ydivval
-                    distval = pow(pow(coords[keyy][keyx][0] - nux, 2) + pow(coords[keyy][keyx][1] - nuy, 2), 0.5)
-                    hgval = blotorder[0]
-                if(distval <= blurradius):
-                    totval = totval + hgval
-                    cnt = cnt + 1
-                m = m + 1
-            n = n +1
-        if(cnt > 0):
-            totval = totval / cnt
-        else:
-            totval = coords[keyx][keyy][2]
-        return totval
-        
-    #blurring
-    n = 0
-    while (n < len(coords)):
-        m = 0
-        while (m < len(coords[n])):
-            combinecoord[n][m][2] = AverageCoordsInCircle(m, n, coords, blurradius)
-            #combinecoord[n][m][2] = coords[n][m][2]
-            m = m + 1
-        n = n + 1
-
-    #basically, rebuild the post-blur combinecoord to give it edge values. mostly to make sure the interpolation function doesn't shit a brick.
-    #funnily enough, didn't make a difference.
-    combinecoord2 = []
-    row1 = []
-    row1.append([0, 0, combinecoord[0][0][2]])
-    n = 0
-    m = 0
-
-    while (m < len(combinecoord[0])):
-        row1.append([combinecoord[0][m][0], 0, combinecoord[0][m][2]])
-        m = m + 1
-
-    row1.append([width, 0, combinecoord[0][m-1][2]])
-    combinecoord2.append(row1)
-    n = 0
-    while(n < len(combinecoord)):
-        m = 0
-        row = []
-        row.append([0, combinecoord[n][m][1], combinecoord[n][m][2]])
-        while(m < len(combinecoord[n])):
-            row.append([combinecoord[n][m][0], combinecoord[n][m][1], combinecoord[n][m][2]])
-            m = m + 1
-        m = m - 1
-        row.append([width, combinecoord[n][m][1], combinecoord[n][m][2]])
-        combinecoord2.append(row)
-        n = n + 1
-
-    n = n - 1
-    m = 0
-    rowlast = []
-    rowlast.append([0, height, combinecoord[n][m][2]])
-    while m < len(combinecoord[n]):
-        rowlast.append([combinecoord[n][m][0], height, combinecoord[n][m][2]])
-        m = m + 1
-    m = m - 1
-    rowlast.append([width, height, combinecoord[n][m][2]])
-
-    combinecoord2.append(rowlast)
-
-    #print(str(combinecoord))
-
-    #This part is fine, actually, imho.
-    #oh god it's not fine
-    #1/17/2024 - Adjusting things to try to fix edges
-    #   - Replacing with Cubic Splines
-    #ok cubic splines fixed it.
-
-    #logistic function interpolation
-##    def logi(val, xo, yo, xt, yt, dbg=0):
-##        if(dbg != 0):
-##            print("Logi function: " + str(val) + ", " + str(xo) + ", " + str(yo) + ", " + str(xt) + ", " + str(yt))
-##        steep = -1 * steepmultiplier / ((xt - xo))#
-##        retval = yo + (yt - yo) * (1 / (1 + pow(math.e, steep * (val - (xo + xt)/2))))
-##        retval = int(retval)
-##        if(dbg != 0):
-##            print("Output: " + str(retval))
-##        return retval
-    #cubic spline interpolation
-##    def logi(val, xo, yo, xt, yt, dbg=0):
-##        if(dbg != 0):
-##            print("cubic spline function: " + str(val) + ", " + str(xo) + ", " + str(yo) + ", " + str(xt) + ", " + str(yt))
-##        #steep = -1 * steepmultiplier / ((xt - xo))#
-##        #retval = yo + (yt - yo) * (1 / (1 + pow(math.e, steep * (val - (xo + xt)/2))))
-##        #retval = int(retval)
-##        A = (-2 * (yt - yo)) / pow((xt - xo), 3)
-##        B = 3 * (yt - yo) / pow((xt - xo), 2)
-##        C = 0
-##        D = yo
-##        xin = val - xo
-##
-##        retval = A * pow(xin, 3) + B * pow(xin, 2) + C * xin + D
-##        #retval = retval
-##        if(dbg != 0):
-##            print("Output: " + str(retval))
-##        return retval
-    #linear interpolation
-    def logi(val, xo, yo, xt, yt, dbg=0):
-        if(dbg != 0):
-            print("linear interp function: " + str(val) + ", " + str(xo) + ", " + str(yo) + ", " + str(xt) + ", " + str(yt))
-        #steep = -1 * steepmultiplier / ((xt - xo))#
-        #retval = yo + (yt - yo) * (1 / (1 + pow(math.e, steep * (val - (xo + xt)/2))))
-        #retval = int(retval)
-        retval = ((yt - yo) / (xt - xo)) * (val - xo) + yo
-        #retval = retval
-        if(dbg != 0):
-            print("Output: " + str(retval))
-        return retval
-
-    n = 0
-    while (n < height):
-        m = 0
-        row = []
-        while (m < width):
-            #behold the greasiest mathematics you'll ever see in your life.
-            hght = 0
-            #1/17/2024 - first pass at improving this to make it less likely to give ground spikes
-            #   - Reducing number of logi calls to 3 (top, bottom, top to bottom.
-            #       - Still getting those edge pops.
-            #1/19/2024 - We're now using closest coordinates by distance for corners.
-            keyx = 0
-            keyy = 0
-
-            while((combinecoord2[keyy][keyx][0] <= m) and (keyx < len(combinecoord2[0]) - 1)):
-                keyx = keyx + 1
-
-            while((combinecoord2[keyy][keyx][1] <= n) and (keyy < len(combinecoord2) - 1)):
-                keyy = keyy + 1
-            #logi - top
-            logit = logi(m, combinecoord2[keyy - 1][keyx - 1][0], combinecoord2[keyy - 1][keyx - 1][2], combinecoord2[keyy - 1][keyx][0], combinecoord2[keyy - 1][keyx][2])
-            #logi - bot
-            logib = logi(m, combinecoord2[keyy][keyx - 1][0], combinecoord2[keyy][keyx - 1][2], combinecoord2[keyy][keyx][0], combinecoord2[keyy][keyx][2])
-            #logi - left
-            logil = logi(n, combinecoord2[keyy - 1][keyx - 1][1], combinecoord2[keyy - 1][keyx - 1][2], combinecoord2[keyy][keyx - 1][1], combinecoord2[keyy][keyx - 1][2])
-            #logi - right
-            logir = logi(n, combinecoord2[keyy - 1][keyx][1], combinecoord2[keyy - 1][keyx][2], combinecoord2[keyy][keyx][1], combinecoord2[keyy][keyx][2])
-            #logi - horiz
-            logih = logi(n, combinecoord2[keyy - 1][keyx][1], logit, combinecoord2[keyy][keyx][1], logib)
-            #logi - verti
-            logiv = logi(m, combinecoord2[keyy][keyx - 1][0], logil, combinecoord2[keyy][keyx][0], logir)
-            #logi - total
-            #logitotal = int((logih + logiv) / 2)
-            logitotal = (logih + logiv) / 2
-            #print(str(logitotal))
-
-            #q = input("waiting")
-
-            hght = logitotal
-            row.append(hght)
-            m = m + 1
-
-        genmap.append(row)
-        n = n + 1
-
-    return genmap, fliptype
 
 def generate_condensemap ( genmap ):
     #renders map from heightmap to metalmap size
@@ -803,29 +386,32 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
     #start positions...
     n = 0
     while (n < len(start_positions)):
-        if((fliptype == 0) and start_positions[n][0] < (xcoord/2)) or ((fliptype == 1) and start_positions[n][1] < (ycoord/2)) or ((fliptype == 2) and start_positions[n][0] < (xcoord / 2)):
-            rad = min(max(3, int((map_properties["mapsizex"]+map_properties["mapsizey"])/2)), 6)
-            rnd = random.randint(-60, 60)
-            tri1 = [int(start_positions[n][0] + rad * math.cos((math.pi / 180) * rnd)), int(start_positions[n][1] + rad * math.sin((math.pi / 180) * rnd))]
-            tri2 = [int(start_positions[n][0] + rad * math.cos((2 * math.pi / 3) + (math.pi / 180) * rnd)), int(start_positions[n][1] + rad * math.sin((2 * math.pi / 3) + (math.pi / 180) * rnd))]
-            tri3 = [int(start_positions[n][0] + rad * math.cos((4 * math.pi / 3) + (math.pi / 180) * rnd)), int(start_positions[n][1] + rad * math.sin((4 * math.pi / 3) + (math.pi / 180) * rnd))]
-            metalpoints.append(tri1)
-            metalpoints.append(tri2)
-            metalpoints.append(tri3)
+        rad = min(max(3, int((map_properties["mapsizex"]+map_properties["mapsizey"])/2)), 6)
+        rnd = random.randint(-60, 60)
+        tri1 = [int(start_positions[n][0] * xcoord + rad * math.cos((math.pi / 180) * rnd)), int(start_positions[n][1] * ycoord + rad * math.sin((math.pi / 180) * rnd))]
+        tri2 = [int(start_positions[n][0] * xcoord + rad * math.cos((2 * math.pi / 3) + (math.pi / 180) * rnd)), int(start_positions[n][1] * ycoord + rad * math.sin((2 * math.pi / 3) + (math.pi / 180) * rnd))]
+        tri3 = [int(start_positions[n][0] * xcoord + rad * math.cos((4 * math.pi / 3) + (math.pi / 180) * rnd)), int(start_positions[n][1] * ycoord + rad * math.sin((4 * math.pi / 3) + (math.pi / 180) * rnd))]
+        metalpoints.append(tri1)
+        metalpoints.append(tri2)
+        metalpoints.append(tri3)
         n = n + 1
     #other points of interest...
     #currently just even spread + noise, later we can analyze the condensemap to do something more clever
-    mexcount = max(int(((map_properties["mapsizex"] * map_properties["mapsizey"]) - map_properties["numplayers"] * 3) / 3.5), 2)
+    #mexcount = max(int(((map_properties["mapsizex"] * map_properties["mapsizey"]) - map_properties["numplayers"] * 3) / 3.5), 2)
+    mexcount = map_properties["numplayers"] * 4 * (map_properties["mapsizex"] + map_properties["mapsizey"]) // 24
+    basemexcount = mexcount + map_properties["numplayers"] * 3
     mexcount = int(mexcount / 2)
-    print("\tmexcount: " + str(mexcount * 2 + map_properties["numplayers"] * 6))
+    if(fliptype == 4) or (fliptype == 5):
+        mexcount = mexcount // 2
+    print("\tmexcount: " + str(basemexcount))
 
     def distfrom (xo, yo, xt, yt):
         distsq = pow(pow((xt - xo), 2) + pow((yt - yo), 2), 0.5)
         return distsq
 
     mexchk = 4 #checks this many pixels left/right of the mex possiblepoint
-    mexdst = 24 * (map_properties["mapsizex"] + map_properties["mapsizey"]) // 24
-    mexthresh = 0.01 #slope across mexchk up/down needs to be less than this
+    mexdst = 24 #* (map_properties["mapsizex"] + map_properties["mapsizey"]) // 24
+    mexthresh = 0.32 #slope across mexchk up/down needs to be less than this
     
     if(fliptype == 0):
         n = 0
@@ -910,19 +496,116 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
             else:
                 metalpoints.append(possiblepoint)
             n = n + 1
-    elif(fliptype == 2):    #i'm lazy, we'll just make this identical to flipcount 0, but then rotate it by 180 to place the mexes on the other half
+    elif(fliptype == 2):
+        #top left, bottom right
         n = 0
         while n < mexcount:
+            ubound = mexchk
+            bbound = int(ycoord / 2) - mexdst // 2
+            lbound = mexchk
+            rbound = int(xcoord - mexdst / pow(2, 0.5))
+
+            xvar = random.randint(lbound, rbound)
+            ymax = int(ycoord - ycoord/xcoord * xvar - mexdst / pow(2, 0.5))
+            
+            possiblepoint = [xvar, random.randint(ubound, ymax)]
+            m = 0
+            r = 5000
+            while((m < len(metalpoints)) and (r > 0)):
+                dst = distfrom(possiblepoint[0], possiblepoint[1], metalpoints[m][0], metalpoints[m][1])
+                xl = max(possiblepoint[0] - mexchk, 0)
+                xm = min(possiblepoint[0] + mexchk, xcoord - 1)
+                yu = max(possiblepoint[1] - mexchk, 0)
+                yl = min(possiblepoint[1] + mexchk, ycoord - 1)
+
+                xs = abs(condensemap[possiblepoint[1]][xm] - condensemap[possiblepoint[1]][xl]) / (2 * mexchk)
+                ys = abs(condensemap[yu][possiblepoint[0]] - condensemap[yl][possiblepoint[0]]) / (2 * mexchk)
+
+                #print("xs: " + str(xs) + " / ys: " + str(ys))
+
+                Skip = False
+                if(xs > mexthresh) or (ys > mexthresh):
+                    Skip = True
+
+                if(dst < mexdst) or (Skip == True):
+                    xvar = random.randint(lbound, rbound)
+                    ymax = int(ycoord - ycoord/xcoord * xvar - mexdst / pow(2, 0.5))
+            
+                    possiblepoint = [xvar, random.randint(ubound, ymax)]
+                    m = 0
+                    r = r - 1
+                else:
+                    m = m + 1
+                    r = 5000
+            if(r == 0):
+                n = mexcount
+                print("too cramped, couldn't find places to put additional mexes")
+            else:
+                metalpoints.append(possiblepoint)
+            n = n + 1
+    elif(fliptype == 3):
+        #bottom left, top right
+        n = 0
+        while n < mexcount:
+            ubound = mexchk
+            bbound = int(ycoord - mexdst / pow(2, 0.5))
+            lbound = mexchk
+            rbound = int(xcoord - mexdst / pow(2, 0.5))
+
+            xvar = random.randint(lbound, rbound)
+            ymax = int(ycoord/xcoord * xvar - mexdst / pow(2, 0.5))
+            
+            possiblepoint = [xvar, random.randint(ymax, bbound)]
+            m = 0
+            r = 5000
+            while((m < len(metalpoints)) and (r > 0)):
+                dst = distfrom(possiblepoint[0], possiblepoint[1], metalpoints[m][0], metalpoints[m][1])
+                xl = max(possiblepoint[0] - mexchk, 0)
+                xm = min(possiblepoint[0] + mexchk, xcoord - 1)
+                yu = max(possiblepoint[1] - mexchk, 0)
+                yl = min(possiblepoint[1] + mexchk, ycoord - 1)
+
+                xs = abs(condensemap[possiblepoint[1]][xm] - condensemap[possiblepoint[1]][xl]) / (2 * mexchk)
+                ys = abs(condensemap[yu][possiblepoint[0]] - condensemap[yl][possiblepoint[0]]) / (2 * mexchk)
+
+                #print("xs: " + str(xs) + " / ys: " + str(ys))
+
+                Skip = False
+                if(xs > mexthresh) or (ys > mexthresh):
+                    Skip = True
+
+                if(dst < mexdst) or (Skip == True):
+                    xvar = random.randint(lbound, rbound)
+                    ymax = int(ycoord/xcoord * xvar - mexdst / pow(2, 0.5))
+            
+                    possiblepoint = [xvar, random.randint(ymax, bbound)]
+                    m = 0
+                    r = r - 1
+                else:
+                    m = m + 1
+                    r = 5000
+            if(r == 0):
+                n = mexcount
+                print("too cramped, couldn't find places to put additional mexes")
+            else:
+                metalpoints.append(possiblepoint)
+            n = n + 1
+    elif(fliptype == 4):
+        #quad
+        n = 0
+        while n < mexcount:
+            #lbound = min(int(4 * xcoord / (2 * map_properties["mapsizex"])), int(4 * xcoord / 16))
             lbound = mexchk
             rbound = int(xcoord / 2) - mexdst // 2
             ubound = mexchk
-            bbound = ycoord - mexchk
-
+            bbound = int(ycoord / 2) - mexdst // 2
+            
             possiblepoint = [random.randint(lbound, rbound), random.randint(ubound, bbound)]
             m = 0
             r = 5000
             while((m < len(metalpoints)) and (r > 0)):
                 dst = distfrom(possiblepoint[0], possiblepoint[1], metalpoints[m][0], metalpoints[m][1])
+                #mex sanity check
                 xl = max(possiblepoint[0] - mexchk, 0)
                 xm = min(possiblepoint[0] + mexchk, xcoord - 1)
                 yu = max(possiblepoint[1] - mexchk, 0)
@@ -951,7 +634,54 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
             else:
                 metalpoints.append(possiblepoint)
             n = n + 1
+    elif(fliptype == 5):
+        #cross
+        n = 0
+        while n < mexcount:
+            ubound = int(mexdst / pow(2, 0.5))
+            bbound = int(ycoord - mexdst / pow(2, 0.5))
+            lbound = mexchk
+            rbound = int(xcoord - mexdst / pow(2, 0.5))
+
+            yvar = random.randint(ubound, bbound)
+            xmax = int(-1 * (xcoord/ycoord) * (yvar - ycoord / 2) + xcoord / 2)
             
+            possiblepoint = [random.randint(lbound, xmax), yvar]
+            m = 0
+            r = 5000
+            while((m < len(metalpoints)) and (r > 0)):
+                dst = distfrom(possiblepoint[0], possiblepoint[1], metalpoints[m][0], metalpoints[m][1])
+                xl = max(possiblepoint[0] - mexchk, 0)
+                xm = min(possiblepoint[0] + mexchk, xcoord - 1)
+                yu = max(possiblepoint[1] - mexchk, 0)
+                yl = min(possiblepoint[1] + mexchk, ycoord - 1)
+
+                xs = abs(condensemap[possiblepoint[1]][xm] - condensemap[possiblepoint[1]][xl]) / (2 * mexchk)
+                ys = abs(condensemap[yu][possiblepoint[0]] - condensemap[yl][possiblepoint[0]]) / (2 * mexchk)
+
+                #print("xs: " + str(xs) + " / ys: " + str(ys))
+
+                Skip = False
+                if(xs > mexthresh) or (ys > mexthresh):
+                    Skip = True
+
+                if(dst < mexdst) or (Skip == True):
+                    yvar = random.randint(ubound, bbound)
+                    xmax = int(-1 * (xcoord/ycoord) * (yvar - ycoord / 2) + xcoord / 2)
+            
+                    possiblepoint = [random.randint(lbound, xmax), yvar]
+                    m = 0
+                    r = r - 1
+                else:
+                    m = m + 1
+                    r = 5000
+            if(r == 0):
+                n = mexcount
+                print("too cramped, couldn't find places to put additional mexes")
+            else:
+                metalpoints.append(possiblepoint)
+            n = n + 1
+
     #spread... (have to make it a 2x2 red dot to count as a mex)
     metalpix = []
     n = 0
@@ -965,34 +695,112 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
         metalpix.append(pxb)
         metalpix.append(pxrb)
         n = n + 1
-    
-    #mirror...
+        
+    #make a regular array...
+    #This does not work, and nothing I've seen up to this point
+    #makes sense as to why.
+##    reg = []
+##    n = 0
+##    while n < ycoord:
+##        m = 0
+##        row = []
+##        while m < xcoord:
+##            row.append(0)
+##            m = m + 1
+##        reg.append(row)
+##        n = n + 1
+##
+##    n = 0
+##    while n < len(metalpix):
+##        reg[metalpix[n][0]][metalpix[n][1]] = 1
+##        n = n + 1
+##    
+##    #flip that array...
+##    mirrorpix = mirror_array(reg, 0)
+    #so, we mirror the pixels *manually*
     mirrorpix = []
-    n = 0
-    while n < len(metalpix):
-        ditto = [metalpix[n][0], metalpix[n][1]]
-        if(fliptype == 0):
-            ditto[0] = (xcoord - 1) - metalpix[n][0]
-        elif(fliptype == 1):
-            ditto[1] = (ycoord - 1) - metalpix[n][1]
-        elif(fliptype == 2):
-            ditto[0] = (xcoord - 1) - metalpix[n][0]
-            ditto[1] = (ycoord - 1) - metalpix[n][1]
-        mirrorpix.append(metalpix[n])
-        mirrorpix.append(ditto)
-        n = n + 1
-    #make as rgb array...
-    pixelarray = []
-    n = 0
-    while n < ycoord:
-        m = 0
-        row = []
-        while m < xcoord:
-            row.append((0, 0, 0))
-            m = m + 1
-        pixelarray.append(row)
-        n = n + 1
+    
+    if(fliptype == 0):
+        n = 0
+        while (n < len(metalpix)):
+            mirrorpix.append(metalpix[n])
 
+            xs = xcoord - 1 - metalpix[n][0]
+            ys = metalpix[n][1]
+            comb = [xs, ys]
+            mirrorpix.append(comb)
+            n = n + 1
+    if(fliptype == 1):
+        n = 0
+        while (n < len(metalpix)):
+            mirrorpix.append(metalpix[n])
+
+            xs = metalpix[n][0]
+            ys = ycoord - 1 - metalpix[n][1]
+            comb = [xs, ys]
+            mirrorpix.append(comb)
+            n = n + 1
+    if(fliptype == 2):
+        n = 0
+        while (n < len(metalpix)):
+            mirrorpix.append(metalpix[n])
+
+            xs = ycoord - 1 - metalpix[n][1]
+            ys = xcoord - 1 - metalpix[n][0]
+            comb = [xs, ys]
+            mirrorpix.append(comb)
+            n = n + 1
+    if(fliptype == 3):
+        n = 0
+        while (n < len(metalpix)):
+            mirrorpix.append(metalpix[n])
+
+            xs = metalpix[n][1]
+            ys = metalpix[n][0]
+            comb = [xs, ys]
+            mirrorpix.append(comb)
+            n = n + 1
+    if(fliptype == 4):
+        n = 0
+        while (n < len(metalpix)):
+            mirrorpix.append(metalpix[n])
+
+            xs = metalpix[n][0]
+            ys = ycoord - 1 - metalpix[n][1]
+            comb = [xs, ys]
+            mirrorpix.append(comb)
+
+            xs = xcoord - 1 - metalpix[n][0]
+            ys = ycoord - 1 - metalpix[n][1]
+            comb = [xs, ys]
+            mirrorpix.append(comb)
+
+            xs = xcoord - 1 - metalpix[n][0]
+            ys = metalpix[n][1]
+            comb = [xs, ys]
+            mirrorpix.append(comb)
+            n = n + 1
+    if(fliptype == 5):
+        n = 0
+        while (n < len(metalpix)):
+            mirrorpix.append(metalpix[n])
+
+            xs = metalpix[n][1]
+            ys = metalpix[n][0]
+            comb = [xs, ys]
+            mirrorpix.append(comb)
+
+            xs = xcoord - 1 - metalpix[n][0]
+            ys = ycoord - 1 - metalpix[n][1]
+            comb = [xs, ys]
+            mirrorpix.append(comb)
+
+            xs = ycoord - 1 - metalpix[n][1]
+            ys = xcoord - 1 - metalpix[n][0]
+            comb = [xs, ys]
+            mirrorpix.append(comb)
+            n = n + 1
+    
     metaltype = random.randint(0, 1)
     if(metaltype == 0):
         print("\tMetaltype: Constant")
@@ -1007,24 +815,34 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
         if(fliptype == 1):
             p = min(max(-1 * abs(yp - yc) * 2 / yc + 1.25, 0.5), 1)
             retval = 255 * p
-        if(fliptype == 2):
+        if(fliptype == 4) or (fliptype == 5) or (fliptype == 2) or (fliptype == 3):
             dst = pow(pow((xp - xc),2) + pow((yp-yc), 2), 0.5)
             mxdst = pow(pow(xc,2) + pow(yc, 2), 0.5)
             p = min(max(-1 * abs(dst) / mxdst + 1.25, 0.5), 1)
             retval = 255 * p
 
         return int(retval)
-        
+
+    #make as rgb array...
+    pixelarray = []
     n = 0
-    while n < len(mirrorpix):
-        if (mirrorpix[n][0] < xcoord) and (mirrorpix[n][1] < ycoord):
-            if(metaltype == 0):
-                pixelarray[mirrorpix[n][0]][mirrorpix[n][1]] = (255, 0, 0) #currently only max or nil for metal, will adjust later
-            elif(metaltype == 1):
-                pixelarray[mirrorpix[n][0]][mirrorpix[n][1]] = (GetMetal(mirrorpix[n][0], mirrorpix[n][1], xcoord/2, ycoord/2, fliptype), 0, 0)
-        else:
-            print("mex out of bounds at: " + str(mirrorpix[n]))
+    while n < ycoord:
+        m = 0
+        row = []
+        while m < xcoord:
+            redvalue = 0
+            r = 0
+            while (r < len(mirrorpix)):
+                if(m == mirrorpix[r][1]) and (n == mirrorpix[r][0]):
+                    redvalue = 255
+                    if(metaltype == 1):
+                        redvalue = GetMetal( n, m, ycoord // 2, xcoord // 2, fliptype)
+                r = r + 1
+            row.append((redvalue, 0, 0))
+            m = m + 1
+        pixelarray.append(row)
         n = n + 1
+    
     return pixelarray
 
 def generate_texmap ( genmap, texture_family, mult, minh ):
@@ -1170,80 +988,172 @@ def generate_texmap ( genmap, texture_family, mult, minh ):
     
     return texmap
 
-def generate_startpositions ( genmap, fliptype, map_properties ):
+def generate_startpositions ( fliptype, map_properties ):
+    #I'm going to output floats here. Then from whatever function needs the startpositions
+    #it'll multiply width * [0] and height by [1]
     start_positions = []
-    #condense...
-    condensemap = generate_condensemap ( genmap )
-    #with fliptype. 0 is left/right. 1 is top/bottom. 2 is bottom left/top right or bottom right/top left
-    #currently just an even spread, later on we can analyze the condensemap to make this a bit smarter.
-    xcoord = len(condensemap[0])
-    ycoord = len(condensemap)
-
-    backline = min(4, map_properties["numplayers"])
-    frontline = map_properties["numplayers"] - backline
-    choice = 0
+    np = map_properties["numplayers"]
+    hmw = map_properties["mapsizex"] * 64 + 1
+    hmh = map_properties["mapsizey"] * 64 + 1
+    backline = np
+    frontline = 0
+    if(np > 4):
+        backline = (map_properties["numplayers"] * 2) // 5
+        frontline = np - backline
+        
     if(fliptype == 0):
-        xset = max(int(xcoord / (map_properties["mapsizex"] * 2)), int(xcoord / 16))
-        xset2 = xcoord - xset
-        n = 0
-        while n < backline:
-            yset = int(ycoord * (n + 1) / (backline + 1))
+        #horizontal
+        xset = random.uniform(2/32, 4/32)
+        yset = random.uniform(2/32, 30/32)
+        start_positions.append([xset, yset])
+        n = 1
+        while(n < backline):
+            xset = random.uniform(2/32, 4/32)
+            yset = random.uniform(2/32, 30/32)
+            m = 0
+            while m < len(start_positions):
+                dist = pow(pow((xset - start_positions[m][0]) * hmw, 2) + pow((yset - start_positions[m][1]) * hmh, 2), 0.5)
+                if(dist < 48):  #2x mex radius
+                    xset = random.uniform(2/32, 4/32)
+                    yset = random.uniform(2/32, 30/32)
+                    m = 0
+                else:
+                    m = m + 1
             start_positions.append([xset, yset])
-            start_positions.append([xset2, yset])
             n = n + 1
-        xset = max(int(3 * xcoord / (map_properties["mapsizex"] * 2)), int(3 * xcoord / 16))
-        xset2 = xcoord - xset
-        n = 0
-        while n < frontline:
-            yset = int(ycoord * (n + 1) / (frontline + 1))
-            start_positions.append([xset, yset])
-            start_positions.append([xset2, yset])
-            n = n + 1
-    elif(fliptype == 1):
-        yset = max(int(ycoord / (map_properties["mapsizey"] * 2)), int(ycoord / 16))
-        yset2 = ycoord - yset
-        n = 0
-        while n < backline:
-            xset = int(xcoord * (n + 1) / (backline + 1))
-            start_positions.append([xset, yset])
-            start_positions.append([xset, yset2])
-            n = n + 1
-        yset = max(int(3 * ycoord / (map_properties["mapsizey"] * 2)), int(3 * ycoord / 16))
-        yset2 = ycoord - yset
         n = 0
         while n < frontline:
-            xset = int(xcoord * (n + 1) / (frontline + 1))
-            start_positions.append([xset, yset])
-            start_positions.append([xset, yset2])
-            n = n + 1
-    elif(fliptype == 2):
-        choice = random.randint(0, 1)
-        radius = 3 * max(int(min(xcoord, ycoord) / (min(map_properties["mapsizex"], map_properties["mapsizey"]) * 2)), int(min(xcoord, ycoord) / 16))
-        n = 0
-        while n < backline:
-            #top left/bottom left
-            xset = int(radius * math.cos((math.pi / 2) * (n + 1) / (backline + 1)))
-            yset = ycoord * choice + math.pow(-1, choice) * int(radius * math.sin((math.pi / 2) * (n + 1) / (backline + 1)))
-            start_positions.append([xset, yset])
-            #bottom right/top right
-            xset = xcoord - int(radius * math.cos((math.pi / 2) * (n + 1) / (backline + 1)))
-            yset = ycoord * (1 - choice) + math.pow(-1, (1 - choice)) * int(radius * math.sin((math.pi / 2) * (n + 1) / (backline + 1)))
+            xset = random.uniform(3/32, 5/32)
+            yset = random.uniform(2/32, 30/32)
+            m = 0
+            while m < len(start_positions):
+                dist = pow(pow((xset - start_positions[m][0]) * hmw, 2) + pow((yset - start_positions[m][1]) * hmh, 2), 0.5)
+                if(dist < 48):  #2x mex radius
+                    xset = random.uniform(3/32, 5/32)
+                    yset = random.uniform(2/32, 30/32)
+                    m = 0
+                else:
+                    m = m + 1
             start_positions.append([xset, yset])
             n = n + 1
-        radius = int(1.5 * max(3 * int(min(xcoord, ycoord) / (2 * min(map_properties["mapsizex"], map_properties["mapsizey"]))), int(3 * min(xcoord, ycoord) / 16)))
+    if(fliptype == 1):
+        #vertical
+        xset = random.uniform(2/32, 30/32)
+        yset = random.uniform(2/32, 4/32)
+        start_positions.append([xset, yset])
+        n = 1
+        while(n < backline):
+            xset = random.uniform(2/32, 30/32)
+            yset = random.uniform(2/32, 4/32)
+            m = 0
+            while m < len(start_positions):
+                dist = pow(pow((xset - start_positions[m][0]) * hmw, 2) + pow((yset - start_positions[m][1]) * hmh, 2), 0.5)
+                if(dist < 48):  #2x mex radius
+                    xset = random.uniform(2/32, 30/32)
+                    yset = random.uniform(2/32, 4/32)
+                    m = 0
+                else:
+                    m = m + 1
+            start_positions.append([xset, yset])
+            n = n + 1
         n = 0
         while n < frontline:
-            #top left/bottom left
-            xset = int(radius * math.cos((math.pi / 2) * (n + 1) / (backline + 1)))
-            yset = ycoord * choice + math.pow(-1, choice) * int(radius * math.sin((math.pi / 2) * (n + 1) / (backline + 1)))
+            xset = random.uniform(2/32, 30/32)
+            yset = random.uniform(3/32, 5/32)
+            m = 0
+            while m < len(start_positions):
+                dist = pow(pow((xset - start_positions[m][0]) * hmw, 2) + pow((yset - start_positions[m][1]) * hmh, 2), 0.5)
+                if(dist < 48):  #2x mex radius
+                    xset = random.uniform(2/32, 30/32)
+                    yset = random.uniform(3/32, 5/32)
+                    m = 0
+                else:
+                    m = m + 1
             start_positions.append([xset, yset])
-            #bottom right/top right
-            xset = xcoord - int(radius * math.cos((math.pi / 2) * (n + 1) / (backline + 1)))
-            yset = ycoord * (1 - choice) + math.pow(-1, (1 - choice)) * int(radius * math.sin((math.pi / 2) * (n + 1) / (backline + 1)))
-            start_positions.append([xset, yset])
-            #bottom right/top right
             n = n + 1
-    return start_positions, choice
+    if(fliptype == 2):
+        #top left, bottom right
+        xset = random.uniform(1/32, 8/32)
+        yset = random.uniform(1/32, 8/32)
+        start_positions.append([xset, yset])
+        n = 1
+        while(n < np):
+            xset = random.uniform(1/32, 8/32)
+            yset = random.uniform(1/32, 8/32)
+            m = 0
+            while m < len(start_positions):
+                dist = pow(pow((xset - start_positions[m][0]) * hmw, 2) + pow((yset - start_positions[m][1]) * hmh, 2), 0.5)
+                if(dist < 48):  #2x mex radius
+                    xset = random.uniform(1/32, 8/32)
+                    yset = random.uniform(1/32, 8/32)
+                    m = 0
+                else:
+                    m = m + 1
+            start_positions.append([xset, yset])
+            n = n + 1
+    if(fliptype == 3):
+        #bottom left, top right
+        xset = random.uniform(1/32, 8/32)
+        yset = random.uniform(24/32, 31/32)
+        start_positions.append([xset, yset])
+        n = 1
+        while(n < np):
+            xset = random.uniform(1/32, 8/32)
+            yset = random.uniform(24/32, 31/32)
+            m = 0
+            while m < len(start_positions):
+                dist = pow(pow((xset - start_positions[m][0]) * hmw, 2) + pow((yset - start_positions[m][1]) * hmh, 2), 0.5)
+                if(dist < 48):  #2x mex radius
+                    xset = random.uniform(1/32, 8/32)
+                    yset = random.uniform(24/32, 31/32)
+                    m = 0
+                else:
+                    m = m + 1
+            start_positions.append([xset, yset])
+            n = n + 1
+    if(fliptype == 4):
+        #quad
+        np = np // 2
+        xset = random.uniform(1/32, 8/32)
+        yset = random.uniform(1/32, 8/32)
+        start_positions.append([xset, yset])
+        n = 1
+        while(n < np):
+            xset = random.uniform(1/32, 8/32)
+            yset = random.uniform(1/32, 8/32)
+            m = 0
+            while m < len(start_positions):
+                dist = pow(pow((xset - start_positions[m][0]) * hmw, 2) + pow((yset - start_positions[m][1]) * hmh, 2), 0.5)
+                if(dist < 48):  #2x mex radius
+                    xset = random.uniform(1/32, 8/32)
+                    yset = random.uniform(1/32, 8/32)
+                    m = 0
+                else:
+                    m = m + 1
+            start_positions.append([xset, yset])
+            n = n + 1
+    if(fliptype == 5):
+        #cross
+        np = np // 2
+        xset = random.uniform(1/32, 8/32)
+        yset = random.uniform(12/32, 20/32)
+        start_positions.append([xset, yset])
+        n = 1
+        while(n < np):
+            xset = random.uniform(1/32, 8/32)
+            yset = random.uniform(12/32, 20/32)
+            m = 0
+            while m < len(start_positions):
+                dist = pow(pow((xset - start_positions[m][0]) * hmw, 2) + pow((yset - start_positions[m][1]) * hmh, 2), 0.5)
+                if(dist < 48):  #2x mex radius
+                    xset = random.uniform(1/32, 8/32)
+                    yset = random.uniform(12/32, 20/32)
+                    m = 0
+                else:
+                    m = m + 1
+            start_positions.append([xset, yset])
+            n = n + 1
+    return start_positions
 
 def GetTextureFamilies():
     retval = []
@@ -1284,8 +1194,28 @@ def main( map_properties ):
     texture_picked = random.choice(texture_families)
     
     genmap = []
+    fliptype = random.randint(0, 5)
 
-    mapname = 'srmg_' + str(map_properties["seed"])
+    ft_index = ["Horizontal", "Vertical", "BLTR", "TLBR", "Corners", "Crosses"]
+    generation_types = ["prefab", "voronoi", "paths"]
+    if map_properties["generation_type"] not in generation_types:
+        map_properties["generation_type"] = random.choice(generation_types)
+
+    #currently locking down fliptypes for paths - 2-5 are of poor quality or nonexistent.
+    if(map_properties["generation_type"] == "paths"):
+        fliptype = random.randint(0, 1)
+
+    #currently locking down fliptypes for prefabs - haven't added 2-5
+    if(map_properties["generation_type"] == "prefab"):
+        fliptype = random.randint(0, 1)
+
+    #locking down fliptypes for oblong maps. Optional, but I'm just being safe atm.
+    if(map_properties["mapsizex"] > map_properties["mapsizey"]):
+        fliptype = 0
+    if(map_properties["mapsizey"] > map_properties["mapsizex"]):
+        fliptype = 1
+
+    mapname = 'srmg_' + map_properties["generation_type"] + "_" + str(fliptype) + "_" + str(map_properties["seed"])
     dirname = 'maps/' + mapname + '/'
 
     os.makedirs(dirname, exist_ok=True)
@@ -1293,32 +1223,49 @@ def main( map_properties ):
     
     print("Map: " + mapname)
     print("\tTextures Used: " + str(texture_picked))
+    print("\tFliptype: " + ft_index[fliptype] + ", " + str(fliptype))
+
+    #generate startpositions
+    start_positions = generate_startpositions(fliptype, map_properties)
 
     #generate map
     genmap = []
-    fliptype = 0
     if(map_properties["generation_type"] == "prefab"):
         print("Using Prefabs.")
         os.chdir(curdir + '/prefab_generation')
-        genmap, fliptype = prefab_generation.prefab_generation.generate_map_using_prefabs(map_properties)
+        #genmap, fliptype = prefab_generation.prefab_generation.generate_map_using_prefabs(map_properties)
+        genmap = prefab_generation.prefab_generation.generate_map_using_prefabs(map_properties, start_positions, fliptype)
+        genmap = mirror_array(genmap, fliptype)
+        genmap = blurmap(genmap, 3, 20, fliptype)
         os.chdir(curdir)
+        #keep in mind:
+        # - seam blur is: 20
+        # - general blur is: 3
     elif(map_properties["generation_type"] == "voronoi"):
         print("Using Voronoi.")
         os.chdir(curdir + '/voronoi_generation')
-        genmap, fliptype = voronoi_generation.voronoi_generation.generate_map_using_voronoi(map_properties)
+        #genmap, fliptype = voronoi_generation.voronoi_generation.generate_map_using_voronoi(map_properties)
+        genmap = voronoi_generation.voronoi_generation.generate_map_using_voronoi(map_properties, start_positions, fliptype)
+        genmap = mirror_array(genmap, fliptype)
+        genmap = blurmap(genmap, 3, 0, fliptype)
         os.chdir(curdir)
+        #keep in mind:
+        # - seam blur is: 0
+        # - general blur is: 3
     elif(map_properties["generation_type"] == "paths"):
         print("Using Paths.")
         os.chdir(curdir + '/path_generation')
-        genmap, fliptype = path_generation.path_generation.generate_map_using_paths(map_properties)
+        #genmap, fliptype = path_generation.path_generation.generate_map_using_paths(map_properties)
+        genmap = path_generation.path_generation.generate_map_using_paths(map_properties, start_positions, fliptype)
+        genmap = mirror_array(genmap, fliptype)
+        genmap = blurmap(genmap, 3, 0, fliptype)
         os.chdir(curdir)
-    else:
-        print("Using Default.")
-        genmap, fliptype = generate_map(map_properties)
+        #keep in mind:
+        # - seam blur is: 0
+        # - general blur is: 3
+    
     #normalize height
     mult, minh = normalize_height(genmap)
-    #start positions
-    start_positions, choice = generate_startpositions(genmap, fliptype, map_properties)
 
     #Heightmap
     heightmap_img = generate_heightmap(genmap, mult, minh)
@@ -1554,9 +1501,9 @@ if __name__ == "__main__":
     map_properties = {
         "mapsizex": 12,
         "mapsizey": 12,
-        "seed": 42069,
+        "seed": 29995,
         "numplayers": 8,
-        "generation_type": "paths"     #normal, prefab, voronoi, paths
+        "generation_type": "prefab"     #prefab, voronoi, paths
         }
     main(map_properties)
     
