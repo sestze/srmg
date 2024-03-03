@@ -79,7 +79,7 @@ def get_texlist_from_infofile ( info ):
             texlist.append(obj)
     return texlist
 
-def get_prefab_object ( family, info, scalar, severity ):
+def get_prefab_object ( family, info, scalar, severity, width, height ):
     prefab = []
     pixeldata = []
     
@@ -88,8 +88,11 @@ def get_prefab_object ( family, info, scalar, severity ):
     prefab_choice = random.choice(texlist)
 
     prefab_filename = "prefabs/" + family + "/" + prefab_choice[0]
-    w = int(prefab_choice[1] * scalar)
-    h = int(prefab_choice[2] * scalar)
+    w = int(prefab_choice[1])
+    h = int(prefab_choice[2])
+
+    w = int(min(w * scalar, width * 0.25))
+    h = int(min(h * scalar, height * 0.25))
 
     with Image.open(prefab_filename) as image:
         #resize the prefab
@@ -147,13 +150,26 @@ def generate_map_using_prefabs (map_properties, start_positions, fliptype):
 
     startheight = 50
     endheight = 50
-    slopechoice = random.randint(0, 2)
-    if(slopechoice == 1):
+    slopechoice = random.randint(0, 1)
+    if(slopechoice == 0):
         startheight = random.randint(2, 4) * 10
         endheight = 100 - startheight
-    if(slopechoice == 2):
+    if(slopechoice == 1):
         startheight = random.randint(6, 8) * 10
         endheight = 100 - startheight
+
+    startspline = random.uniform(3/32, 7/32)
+    endspline = random.uniform(9/32, 15/32)
+
+    if(fliptype == 0):
+        startspline = int(startspline * width)
+        endspline = int(endspline * width)
+    if(fliptype == 1):
+        startspline = int(startspline * height)
+        endspline = int(endspline * height)
+    if(fliptype == 2) or (fliptype == 3) or (fliptype == 4) or (fliptype == 5):
+        startspline = int(startspline * (height + width) / 2)
+        startspline = int(endspline * (height + width) / 2)
     
     print("Map Statistics: ")
     print("\tSeed: " + str(map_properties["seed"]))
@@ -186,20 +202,58 @@ def generate_map_using_prefabs (map_properties, start_positions, fliptype):
         return val
 
     n = 0
-    while n < height:
-        m = 0
+    while(n < height):
         row = []
-        while m < width:
-            inval = clamp(m, 1/8 * width, 3/8 * width)
-            hght = cubic(inval, 1/8 * width, startheight, 3/8 * width, endheight) #defaults to horizontal fliptype
-            if(fliptype == 1):
-                inval = clamp(n, 1/8 * height, 3/8 * height)
-                hght = cubic(inval, 1/8 * height, startheight, 3/8 * height, endheight)
-            if(fliptype == 2):
-                dst = pow(pow(n,2) + pow(m,2), 0.5)
-                inval = clamp(dst, 1/8 * (width + height) / 2, 3/8 * (width + height) / 2)
-                hght = cubic(inval, 1/8 * (width + height) / 2, startheight, 3/8 * (width + height) / 2, endheight)
-            row.append(hght)
+        m = 0
+        while(m < width):
+            #spline for overall map heights
+            threshvariance = 0
+            bumpvariance = 0
+            threshvar = 0
+            htemp = 50
+            if(startheight != endheight):
+                if(fliptype == 0):
+                    threshvar = m
+                    if(m < startspline):
+                        htemp = startheight
+                    elif(m > endspline):
+                        htemp = endheight
+                    else:
+                        htemp = cubic(m, startspline, startheight, endspline, endheight)
+                if(fliptype == 1):
+                    threshvar = n
+                    if(n < startspline):
+                        htemp = startheight
+                    elif(n > endspline):
+                        htemp = endheight
+                    else:
+                        htemp = cubic(n, startspline, startheight, endspline, endheight)
+                if(fliptype == 2):
+                    threshvar = n * pow(2, 0.5) / 2 + m * pow(2, 0.5) / 2
+                    if(n < startspline):
+                        htemp = startheight
+                    elif(n > endspline):
+                        htemp = endheight
+                    else:
+                        htemp = cubic(n, startspline, startheight, endspline, endheight)
+                if(fliptype == 3):
+                    threshvar = (height - n) * pow(2, 0.5) / 2 + m * pow(2, 0.5) / 2
+                    if(n < startspline):
+                        htemp = startheight
+                    elif(n > endspline):
+                        htemp = endheight
+                    else:
+                        htemp = cubic(n, startspline, startheight, endspline, endheight)
+                if(fliptype == 4) or (fliptype == 5):
+                    tdst = pow(pow(m, 2) + pow(n, 2), 0.5)
+                    threshvar = tdst
+                    if(tdst < startspline):
+                        htemp = startheight
+                    elif(tdst > endspline):
+                        htemp = endheight
+                    else:
+                        htemp = cubic(tdst, startspline, startheight, endspline, endheight)
+            row.append(htemp)
             m = m + 1
         genmap.append(row)
         n = n + 1
@@ -209,83 +263,96 @@ def generate_map_using_prefabs (map_properties, start_positions, fliptype):
     print("\tprefab family: " + chosen_family)
     prefab_info = get_prefab_infofile(chosen_family)
     #add in prefabs
-    prefab_number = random.randint(2, 8) * max((map_properties["mapsizex"] + map_properties["mapsizey"]) // 24, 1)
-    if(fliptype == 2):
+    prefab_number = random.randint(12, 16) * (map_properties["mapsizex"] + map_properties["mapsizey"]) / 24
+    if(fliptype == 4) or (fliptype == 5):
         prefab_number = prefab_number // 2
-    prefab_overall_scalar_low = random.randint(5, 8) / 4
-    prefab_overall_scalar_high = prefab_overall_scalar_low * random.randint(3, 5) / 2
-    prefab_severity = random.randint(1, 8) / 4
-
+    prefab_overall_scalar_low = random.uniform(0.1, 0.45)
+    prefab_overall_scalar_high = random.uniform(0.45, 1)
+    
     print("\tprefab_number: " + str(prefab_number))
     print("\tprefab_overall_scalar_low: " + str(prefab_overall_scalar_low))
     print("\tprefab_overall_scalar_high: " + str(prefab_overall_scalar_high))
-    print("\tprefab_severity: " + str(prefab_severity))
 
     def IsBetween( val, l, u ):
         if(val > l) and (val < u):
             return True
         return False
 
-    def CheckDeadZone( x, y, w, h, pfo_w, pfo_h, fliptype ):
-        if(fliptype == 0):
-            if(IsBetween(x, -1 * pfo_w // 2, w / 24)):
+    DZ = []
+    n = 0
+    while n < len(start_positions):
+        DZ.append([start_positions[n][0] * width, start_positions[n][1] * height, 12])
+        n = n + 1
+
+    def CheckDeadZone( x, y, pfo_w, pfo_h, deadzones):
+        n = 0
+        while n < len(deadzones):
+            pfo_rad = max(pfo_w, pfo_h) / 4
+            dz_rad = deadzones[n][2]
+
+            dst = pow(pow(x - deadzones[n][0], 2) + pow(y - deadzones[n][1], 2), 0.5)
+            #print("Deadzone check: " + str(dst) + " vs " + str(pfo_rad) + " + " + str(dz_rad))
+            if(dst < (pfo_rad + dz_rad)):
                 return True
-            #if(x < pfo_w):
-            #    return True
-        if(fliptype == 1):
-            if(IsBetween(y, -1 * pfo_h // 2, h / 24)):
-                return True
-            #if(y < 0):
-            #    return True
-        if(fliptype == 2):
-            dst = pow(pow(x, 2) + pow(y, 2), 0.5)
-            if(IsBetween(dst, 0, (w + h) / 24)):
-                return True
-            if((x < 0) and (y < 0)):
-                return True
+            n = n + 1
         return False
 
     n = 0
     while n < prefab_number:
-        prefab_object = get_prefab_object(chosen_family, prefab_info, random.uniform(prefab_overall_scalar_low, prefab_overall_scalar_high), prefab_severity)
+        prefab_severity = random.uniform(0.25, 2)
+        prefab_object = get_prefab_object(chosen_family, prefab_info, random.uniform(prefab_overall_scalar_low, prefab_overall_scalar_high), prefab_severity, width, height)
         pfo_w = len(prefab_object[0])
         pfo_h = len(prefab_object)
         divx = 1
         divy = 1
 
-        xplace = random.randint(-1 * pfo_w // 2, int((width / divx) - pfo_w / 2))
-        yplace = random.randint(-1 * pfo_h // 2, int((height / divy) - pfo_h / 2))
         if(fliptype == 0):
             divx = 2
-            xplace = random.randint(0, int((width / divx)))
         if(fliptype == 1):
             divy = 2
-            yplace = random.randint(0, int((height / divy)))
-        if(fliptype == 2):
+        if(fliptype == 4):
             divx = 2
             divy = 2
-            radius = random.randint(0, int(max((width + height) / 2 - (pfo_w + pfo_h) / 2,0)))
-            ang = random.randint(-45, 135)
-            xplace = int(math.cos(ang) * radius)
-            yplace = int(math.sin(ang) * radius)
 
-#        xplace = random.randint(-1 * pfo_w // 2, int((width / divx) - pfo_w / 2))
-#        yplace = random.randint(-1 * pfo_h // 2, int((height / divy) - pfo_h / 2))
-        #xplace = random.randint(-1 * pfo_w // 2, int(width / divx))
-        #yplace = random.randint(-1 * pfo_h // 2, int(height / divy))
-        #print("width // 8: " + str(width // 8) + " / height // 8: " + str(height // 8) + " / xplace: " + str(xplace) + " / yplace: " + str(yplace))
+        xplace = random.randint(-1 * pfo_w // 2, int((width / divx) - pfo_w / 2))
+        yplace = random.randint(-1 * pfo_h // 2, int((height / divy) - pfo_h / 2))
 
-        #while(CheckDeadZone(xplace, yplace, width, height, pfo_w, pfo_h, fliptype)):
-            #xplace = random.randint(-1 * pfo_w // 2, int((width / divx) - pfo_w / 2))
-            #yplace = random.randint(-1 * pfo_h // 2, int((height / divy) - pfo_h / 2))
-            #xplace = random.randint(-1 * pfo_w // 2, int(width / divx))
-            #yplace = random.randint(-1 * pfo_h // 2, int(height / divy))
-            #print("fail, rerolling")
-            #print("LOW: " + str(-1 * pfo_h // 2) + " / HIGH: " + str(int((height / divy) - pfo_h / 2)))
-            #print("xplace: " + str(xplace) + " / yplace: " + str(yplace))
+        if(fliptype == 2):
+            yupper = max(height - xplace - pfo_h // 2, -1 * pfo_h // 2 + 1)
+            yplace = random.randint(-1 * pfo_h // 2, yupper)
 
-        genmap = place_prefab(genmap, prefab_object, xplace, yplace)
-        print("prefab placed at: (" + str(xplace) + ", " + str(yplace) + ")")
+        if(fliptype == 3):
+            xupper = max(yplace, -1 * pfo_w // 2 + 1)
+            xplace = random.randint(-1 * pfo_w // 2, xupper)
+
+        if(fliptype == 5):
+            xupper = max(-1 * abs(yplace - height // 2) + width // 2, -1 * pfo_w // 2) + 1
+            xplace = random.randint(-1 * pfo_w // 2, xupper)
+        r = 5000
+        while((CheckDeadZone(xplace, yplace, pfo_w, pfo_h, DZ)) and (r > 0)):
+            xplace = random.randint(-1 * pfo_w // 2, int((width / divx) - pfo_w / 2))
+            yplace = random.randint(-1 * pfo_h // 2, int((height / divy) - pfo_h / 2))
+
+            if(fliptype == 2):
+                yupper = max(height - xplace - pfo_h // 2, -1 * pfo_h // 2 + 1)
+                yplace = random.randint(-1 * pfo_h // 2, yupper)
+
+            if(fliptype == 3):
+                xupper = max(yplace, -1 * pfo_w // 2 + 1)
+                xplace = random.randint(-1 * pfo_w // 2, xupper)
+
+            if(fliptype == 5):
+                xupper = max(-1 * abs(yplace - height // 2) + width // 2, -1 * pfo_w // 2) + 1
+                xplace = random.randint(-1 * pfo_w // 2, xupper)
+            r = r - 1
+
+        if(r > 0):
+            genmap = place_prefab(genmap, prefab_object, xplace, yplace)
+            DZ.append([xplace, yplace, max(pfo_w, pfo_h) / 4])
+            print("prefab placed at: (" + str(xplace) + ", " + str(yplace) + ")")
+        else:
+            print("ran out of prefab spots due to space. exiting.")
+            n = prefab_number
 
         n = n + 1
 

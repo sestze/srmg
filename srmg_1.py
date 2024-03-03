@@ -15,9 +15,7 @@
 #   - Heightmaps
 #       - Offer a different generation method that uses a premade heightmap
 #   - Metalmap
-#       - Make the mex placement a big smarter - stop placing them on top of areas with significant slopes
-#           - Still trying on this, it's failing though.
-#           - We may have too many mexes on the map.
+#       - Current placement on 2/3 offer double-stacked mexes near mirror line.
 #   - Texturemap
 
 
@@ -31,11 +29,15 @@ import os
 import subprocess
 import py7zr
 
+import copy
+
 import prefab_generation.prefab_generation
 
 import voronoi_generation.voronoi_generation
 
 import path_generation.path_generation
+
+import grid_generation.grid_generation
 
 #from typing import BinaryIO, List, Tuple
 from PIL import Image
@@ -49,7 +51,7 @@ from PIL import Image
 #   - 5 - Quads (centers)
 
 def mirror_array ( inmap, fliptype ):
-    genmap_copy = inmap.copy()
+    genmap_copy = copy.deepcopy(inmap)
     height = len(inmap)
     width = len(inmap[0])
     print("mirroring...")
@@ -119,7 +121,7 @@ def blurmap ( genmap, general, seam, fliptype ):
     height = len(genmap)
     width = len(genmap[0])
 
-    genmap_copy = genmap.copy()
+    genmap_copy = copy.deepcopy(genmap)
 
     def clamp(val, l, u):
         if l > val:
@@ -160,6 +162,7 @@ def blurmap ( genmap, general, seam, fliptype ):
     
     scaleblur = seam
     if(scaleblur > 0):
+        print("seam blurring")
         #horizontal or quad
         if(fliptype == 0) or (fliptype == 4):
             n = 0
@@ -214,19 +217,259 @@ def blurmap ( genmap, general, seam, fliptype ):
                         genmap_copy[n][m] = AverageCoordsInCircle(m, n, genmap, adst)
                     m = m + 1
                 n = n + 1
+        print("seam blurring done")
+        
+    second_copy = copy.deepcopy(genmap_copy)
 
+    print("global blurring...")
     #Global blur.
     blurrad = general #blurs all pix around general units of the pixel
+    count = width * height / 20
+    perc = 100 * count / (width * height)
     n = 0
     while(n < height):
         m = 0
         while (m < width):
-            genmap_copy[n][m] = AverageCoordsInCircle(m, n, genmap, blurrad)
+            genmap_copy[n][m] = AverageCoordsInCircle(m, n, second_copy, blurrad)
+            if(n * m > count):
+                print("... " + str(int(perc)) + "% done...")
+                count = count + width * height / 20
+                perc = 100 * count / (width * height)
             m = m + 1
         n = n + 1
+    print("... global blurring done.")
 
     print("blurring complete")
     
+    return genmap_copy
+
+def atrophymap( genmap, iterations ):
+    genmap_copy = copy.deepcopy(genmap)
+
+    print("running atrophy")
+    width = len(genmap[0])
+    height = len(genmap)
+    its = 0
+    while its < iterations:
+        #all (using copied array)
+        second_copy = copy.deepcopy(genmap_copy)
+        n = 0
+        while n < height:
+            m = 0
+            while m < width:
+                neighbors = ["n/a", "n/a", "n/a",
+                             "n/a", "n/a", "n/a",
+                             "n/a", "n/a", "n/a"]
+                grid_neighbors = [[n-1, m-1], [n-1, m], [n-1, m+1],
+                                  [n, m-1], [n, m], [n, m+1],
+                                  [n+1, m-1], [n+1, m], [n+1, m+1]]
+                share = 0
+                grid_read = range(0, 9)
+                p = 0
+                while p < len(grid_read):
+                    q = grid_read[p]
+                    if(grid_neighbors[q][0] > 0) and (grid_neighbors[q][0] < height) and (grid_neighbors[q][1] > 0) and (grid_neighbors[q][1] < width):
+                        if(genmap_copy[n][m] > genmap_copy[grid_neighbors[q][0]][grid_neighbors[q][1]]):
+                            neighbors[q] = genmap_copy[grid_neighbors[q][0]][grid_neighbors[q][1]]
+                            share = share + 1
+                    p = p + 1
+                mindisp = 999999
+                tdisp = 0
+                p = 0
+                while p < len(grid_read):
+                    q = grid_read[p]
+                    if(neighbors[q] != "n/a"):
+                        disp = genmap_copy[n][m] - neighbors[q]
+                        if(disp < mindisp):
+                            mindisp = disp
+                            tdisp = tdisp + disp 
+                    p = p + 1
+                if(share > 0):
+                    second_copy[n][m] = genmap_copy[n][m] - mindisp * (1 - 1 / (share + 1))
+                p = 0
+                while p < len(grid_read):
+                    q = grid_read[p]
+                    if(neighbors[q] != "n/a"):
+                        disp = genmap_copy[n][m] - neighbors[q]
+                        second_copy[grid_neighbors[q][0]][grid_neighbors[q][1]] = genmap_copy[grid_neighbors[q][0]][grid_neighbors[q][1]] + disp / tdisp * (mindisp * (1 - 1 / (share + 1)))
+                    p = p + 1
+                m = m + 1
+            n = n + 1
+        del genmap_copy
+        genmap_copy = copy.deepcopy(second_copy)
+        del second_copy
+##        n = height - 1
+##        #br
+##        n = 0
+##        while n < height:
+##            m = 0
+##            while m < width:
+##                neighbors = ["n/a", "n/a", "n/a",
+##                             "n/a", "n/a", "n/a",
+##                             "n/a", "n/a", "n/a"]
+##                grid_neighbors = [[n-1, m-1], [n-1, m], [n-1, m+1],
+##                                  [n, m-1], [n, m], [n, m+1],
+##                                  [n+1, m-1], [n+1, m], [n+1, m+1]]
+##                share = 0
+##                grid_read = [0, 1, 3]
+##                p = 0
+##                while p < len(grid_read):
+##                    q = grid_read[p]
+##                    if(grid_neighbors[q][0] > 0) and (grid_neighbors[q][0] < height) and (grid_neighbors[q][1] > 0) and (grid_neighbors[q][1] < width):
+##                        if(genmap_copy[n][m] > genmap_copy[grid_neighbors[q][0]][grid_neighbors[q][1]]):
+##                            neighbors[q] = genmap_copy[grid_neighbors[q][0]][grid_neighbors[q][1]]
+##                            share = share + 1
+##                    p = p + 1
+##                mindisp = 999999
+##                tdisp = 0
+##                p = 0
+##                while p < len(grid_read):
+##                    q = grid_read[p]
+##                    if(neighbors[q] != "n/a"):
+##                        disp = genmap_copy[n][m] - neighbors[q]
+##                        if(disp < mindisp):
+##                            mindisp = disp
+##                            tdisp = tdisp + disp 
+##                    p = p + 1
+##                genmap_copy[n][m] = genmap_copy[n][m] - mindisp * (1 - 1 / (share + 1))
+##                p = 0
+##                while p < len(grid_read):
+##                    q = grid_read[p]
+##                    if(neighbors[q] != "n/a"):
+##                        disp = genmap_copy[n][m] - neighbors[q]
+##                        genmap_copy[grid_neighbors[q][0]][grid_neighbors[q][1]] = genmap_copy[grid_neighbors[q][0]][grid_neighbors[q][1]] + disp / tdisp * (mindisp * (1 - 1 / (share + 1)))
+##                    p = p + 1
+##                m = m + 1
+##            n = n + 1
+##        n = height - 1
+        #tl
+##        while n >= 0:
+##            m = width - 1
+##            while m >= 0:
+##                neighbors = ["n/a", "n/a", "n/a",
+##                             "n/a", "n/a", "n/a",
+##                             "n/a", "n/a", "n/a"]
+##                grid_neighbors = [[n-1, m-1], [n-1, m], [n-1, m+1],
+##                                  [n, m-1], [n, m], [n, m+1],
+##                                  [n+1, m-1], [n+1, m], [n+1, m+1]]
+##                share = 0
+##                grid_read = [5, 7, 8]
+##                p = 0
+##                while p < len(grid_read):
+##                    q = grid_read[p]
+##                    if(grid_neighbors[q][0] > 0) and (grid_neighbors[q][0] < height) and (grid_neighbors[q][1] > 0) and (grid_neighbors[q][1] < width):
+##                        if(genmap_copy[n][m] > genmap_copy[grid_neighbors[q][0]][grid_neighbors[q][1]]):
+##                            neighbors[q] = genmap_copy[grid_neighbors[q][0]][grid_neighbors[q][1]]
+##                            share = share + 1
+##                    p = p + 1
+##                mindisp = 999999
+##                tdisp = 0
+##                p = 0
+##                while p < len(grid_read):
+##                    q = grid_read[p]
+##                    if(neighbors[q] != "n/a"):
+##                        disp = genmap_copy[n][m] - neighbors[q]
+##                        if(disp < mindisp):
+##                            mindisp = disp
+##                            tdisp = tdisp + disp 
+##                    p = p + 1
+##                genmap_copy[n][m] = genmap_copy[n][m] - mindisp * (1 - 1 / (share + 1))
+##                p = 0
+##                while p < len(grid_read):
+##                    q = grid_read[p]
+##                    if(neighbors[q] != "n/a"):
+##                        disp = genmap_copy[n][m] - neighbors[q]
+##                        genmap_copy[grid_neighbors[q][0]][grid_neighbors[q][1]] = genmap_copy[grid_neighbors[q][0]][grid_neighbors[q][1]] + disp / tdisp * (mindisp * (1 - 1 / (share + 1)))
+##                    p = p + 1
+##                m = m - 1
+##            n = n - 1
+##        #tr
+##        n = height - 1
+##        while n >= 0:
+##            m = 0
+##            while m < width:
+##                neighbors = ["n/a", "n/a", "n/a",
+##                             "n/a", "n/a", "n/a",
+##                             "n/a", "n/a", "n/a"]
+##                grid_neighbors = [[n-1, m-1], [n-1, m], [n-1, m+1],
+##                                  [n, m-1], [n, m], [n, m+1],
+##                                  [n+1, m-1], [n+1, m], [n+1, m+1]]
+##                share = 0
+##                grid_read = [3, 6, 7]
+##                p = 0
+##                while p < len(grid_read):
+##                    q = grid_read[p]
+##                    if(grid_neighbors[q][0] > 0) and (grid_neighbors[q][0] < height) and (grid_neighbors[q][1] > 0) and (grid_neighbors[q][1] < width):
+##                        if(genmap_copy[n][m] > genmap_copy[grid_neighbors[q][0]][grid_neighbors[q][1]]):
+##                            neighbors[q] = genmap_copy[grid_neighbors[q][0]][grid_neighbors[q][1]]
+##                            share = share + 1
+##                    p = p + 1
+##                mindisp = 999999
+##                tdisp = 0
+##                p = 0
+##                while p < len(grid_read):
+##                    q = grid_read[p]
+##                    if(neighbors[q] != "n/a"):
+##                        disp = genmap_copy[n][m] - neighbors[q]
+##                        if(disp < mindisp):
+##                            mindisp = disp
+##                            tdisp = tdisp + disp 
+##                    p = p + 1
+##                genmap_copy[n][m] = genmap_copy[n][m] - mindisp * (1 - 1 / (share + 1))
+##                p = 0
+##                while p < len(grid_read):
+##                    q = grid_read[p]
+##                    if(neighbors[q] != "n/a"):
+##                        disp = genmap_copy[n][m] - neighbors[q]
+##                        genmap_copy[grid_neighbors[q][0]][grid_neighbors[q][1]] = genmap_copy[grid_neighbors[q][0]][grid_neighbors[q][1]] + disp / tdisp * (mindisp * (1 - 1 / (share + 1)))
+##                    p = p + 1
+##                m = m + 1
+##            n = n - 1
+##        #bl
+##        n = 0
+##        while n < height:
+##            m = width - 1
+##            while m >= 0:
+##                neighbors = ["n/a", "n/a", "n/a",
+##                             "n/a", "n/a", "n/a",
+##                             "n/a", "n/a", "n/a"]
+##                grid_neighbors = [[n-1, m-1], [n-1, m], [n-1, m+1],
+##                                  [n, m-1], [n, m], [n, m+1],
+##                                  [n+1, m-1], [n+1, m], [n+1, m+1]]
+##                share = 0
+##                grid_read = [1, 2, 5]
+##                p = 0
+##                while p < len(grid_read):
+##                    q = grid_read[p]
+##                    if(grid_neighbors[q][0] > 0) and (grid_neighbors[q][0] < height) and (grid_neighbors[q][1] > 0) and (grid_neighbors[q][1] < width):
+##                        if(genmap_copy[n][m] > genmap_copy[grid_neighbors[q][0]][grid_neighbors[q][1]]):
+##                            neighbors[q] = genmap_copy[grid_neighbors[q][0]][grid_neighbors[q][1]]
+##                            share = share + 1
+##                    p = p + 1
+##                mindisp = 999999
+##                tdisp = 0
+##                p = 0
+##                while p < len(grid_read):
+##                    q = grid_read[p]
+##                    if(neighbors[q] != "n/a"):
+##                        disp = genmap_copy[n][m] - neighbors[q]
+##                        if(disp < mindisp):
+##                            mindisp = disp
+##                            tdisp = tdisp + disp 
+##                    p = p + 1
+##                genmap_copy[n][m] = genmap_copy[n][m] - mindisp * (1 - 1 / (share + 1))
+##                p = 0
+##                while p < len(grid_read):
+##                    q = grid_read[p]
+##                    if(neighbors[q] != "n/a"):
+##                        disp = genmap_copy[n][m] - neighbors[q]
+##                        genmap_copy[grid_neighbors[q][0]][grid_neighbors[q][1]] = genmap_copy[grid_neighbors[q][0]][grid_neighbors[q][1]] + disp / tdisp * (mindisp * (1 - 1 / (share + 1)))
+##                    p = p + 1
+##                m = m - 1
+##            n = n + 1
+        its = its + 1
+        
+    print("atrophy complete")
     return genmap_copy
 
 def generate_heightmap(genmap, mult, minh):
@@ -506,7 +749,7 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
             rbound = int(xcoord - mexdst / pow(2, 0.5))
 
             xvar = random.randint(lbound, rbound)
-            ymax = int(ycoord - ycoord/xcoord * xvar - mexdst / pow(2, 0.5))
+            ymax = max(int(ycoord - ycoord/xcoord * xvar - mexdst * 4 / pow(2, 0.5)), ubound + 1)
             
             possiblepoint = [xvar, random.randint(ubound, ymax)]
             m = 0
@@ -529,7 +772,7 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
 
                 if(dst < mexdst) or (Skip == True):
                     xvar = random.randint(lbound, rbound)
-                    ymax = int(ycoord - ycoord/xcoord * xvar - mexdst / pow(2, 0.5))
+                    ymax = max(int(ycoord - ycoord/xcoord * xvar - mexdst * 4 / pow(2, 0.5)), ubound + 1)
             
                     possiblepoint = [xvar, random.randint(ubound, ymax)]
                     m = 0
@@ -553,7 +796,7 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
             rbound = int(xcoord - mexdst / pow(2, 0.5))
 
             xvar = random.randint(lbound, rbound)
-            ymax = int(ycoord/xcoord * xvar - mexdst / pow(2, 0.5))
+            ymax = min(int(ycoord/xcoord * xvar + mexdst * 4 / pow(2, 0.5)), bbound) - 1
             
             possiblepoint = [xvar, random.randint(ymax, bbound)]
             m = 0
@@ -576,7 +819,7 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
 
                 if(dst < mexdst) or (Skip == True):
                     xvar = random.randint(lbound, rbound)
-                    ymax = int(ycoord/xcoord * xvar - mexdst / pow(2, 0.5))
+                    ymax = min(int(ycoord/xcoord * xvar + mexdst * 4 / pow(2, 0.5)), bbound) - 1
             
                     possiblepoint = [xvar, random.randint(ymax, bbound)]
                     m = 0
@@ -644,7 +887,7 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
             rbound = int(xcoord - mexdst / pow(2, 0.5))
 
             yvar = random.randint(ubound, bbound)
-            xmax = int(-1 * (xcoord/ycoord) * (yvar - ycoord / 2) + xcoord / 2)
+            xmax = max(int(-1 * (xcoord/ycoord) * (yvar - ycoord / 2) + xcoord / 2), lbound) + 1
             
             possiblepoint = [random.randint(lbound, xmax), yvar]
             m = 0
@@ -667,7 +910,7 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
 
                 if(dst < mexdst) or (Skip == True):
                     yvar = random.randint(ubound, bbound)
-                    xmax = int(-1 * (xcoord/ycoord) * (yvar - ycoord / 2) + xcoord / 2)
+                    xmax = max(int(-1 * (xcoord/ycoord) * (yvar - ycoord / 2) + xcoord / 2), lbound) + 1
             
                     possiblepoint = [random.randint(lbound, xmax), yvar]
                     m = 0
@@ -699,108 +942,27 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
     #make a regular array...
     #This does not work, and nothing I've seen up to this point
     #makes sense as to why.
-##    reg = []
-##    n = 0
-##    while n < ycoord:
-##        m = 0
-##        row = []
-##        while m < xcoord:
-##            row.append(0)
-##            m = m + 1
-##        reg.append(row)
-##        n = n + 1
-##
-##    n = 0
-##    while n < len(metalpix):
-##        reg[metalpix[n][0]][metalpix[n][1]] = 1
-##        n = n + 1
-##    
-##    #flip that array...
-##    mirrorpix = mirror_array(reg, 0)
+    reg = []
+    n = 0
+    while n < ycoord:
+        m = 0
+        row = []
+        while m < xcoord:
+            row.append(0)
+            m = m + 1
+        reg.append(row)
+        n = n + 1
+
+    n = 0
+    while n < len(metalpix):
+        #print("metal at: " + str(metalpix[n][0]) + ", " + str(metalpix[n][1]))
+        reg[metalpix[n][1]][metalpix[n][0]] = 1
+        n = n + 1
+
     #so, we mirror the pixels *manually*
     mirrorpix = []
-    
-    if(fliptype == 0):
-        n = 0
-        while (n < len(metalpix)):
-            mirrorpix.append(metalpix[n])
-
-            xs = xcoord - 1 - metalpix[n][0]
-            ys = metalpix[n][1]
-            comb = [xs, ys]
-            mirrorpix.append(comb)
-            n = n + 1
-    if(fliptype == 1):
-        n = 0
-        while (n < len(metalpix)):
-            mirrorpix.append(metalpix[n])
-
-            xs = metalpix[n][0]
-            ys = ycoord - 1 - metalpix[n][1]
-            comb = [xs, ys]
-            mirrorpix.append(comb)
-            n = n + 1
-    if(fliptype == 2):
-        n = 0
-        while (n < len(metalpix)):
-            mirrorpix.append(metalpix[n])
-
-            xs = ycoord - 1 - metalpix[n][1]
-            ys = xcoord - 1 - metalpix[n][0]
-            comb = [xs, ys]
-            mirrorpix.append(comb)
-            n = n + 1
-    if(fliptype == 3):
-        n = 0
-        while (n < len(metalpix)):
-            mirrorpix.append(metalpix[n])
-
-            xs = metalpix[n][1]
-            ys = metalpix[n][0]
-            comb = [xs, ys]
-            mirrorpix.append(comb)
-            n = n + 1
-    if(fliptype == 4):
-        n = 0
-        while (n < len(metalpix)):
-            mirrorpix.append(metalpix[n])
-
-            xs = metalpix[n][0]
-            ys = ycoord - 1 - metalpix[n][1]
-            comb = [xs, ys]
-            mirrorpix.append(comb)
-
-            xs = xcoord - 1 - metalpix[n][0]
-            ys = ycoord - 1 - metalpix[n][1]
-            comb = [xs, ys]
-            mirrorpix.append(comb)
-
-            xs = xcoord - 1 - metalpix[n][0]
-            ys = metalpix[n][1]
-            comb = [xs, ys]
-            mirrorpix.append(comb)
-            n = n + 1
-    if(fliptype == 5):
-        n = 0
-        while (n < len(metalpix)):
-            mirrorpix.append(metalpix[n])
-
-            xs = metalpix[n][1]
-            ys = metalpix[n][0]
-            comb = [xs, ys]
-            mirrorpix.append(comb)
-
-            xs = xcoord - 1 - metalpix[n][0]
-            ys = ycoord - 1 - metalpix[n][1]
-            comb = [xs, ys]
-            mirrorpix.append(comb)
-
-            xs = ycoord - 1 - metalpix[n][1]
-            ys = xcoord - 1 - metalpix[n][0]
-            comb = [xs, ys]
-            mirrorpix.append(comb)
-            n = n + 1
-    
+    mirrorpix = mirror_array(reg, fliptype)
+        
     metaltype = random.randint(0, 1)
     if(metaltype == 0):
         print("\tMetaltype: Constant")
@@ -831,13 +993,10 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
         row = []
         while m < xcoord:
             redvalue = 0
-            r = 0
-            while (r < len(mirrorpix)):
-                if(m == mirrorpix[r][1]) and (n == mirrorpix[r][0]):
-                    redvalue = 255
-                    if(metaltype == 1):
-                        redvalue = GetMetal( n, m, ycoord // 2, xcoord // 2, fliptype)
-                r = r + 1
+            if(mirrorpix[n][m] == 1):
+                redvalue = 255
+                if(metaltype == 1):
+                    redvalue = GetMetal( m, n, xcoord // 2, ycoord // 2, fliptype)
             row.append((redvalue, 0, 0))
             m = m + 1
         pixelarray.append(row)
@@ -845,7 +1004,7 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
     
     return pixelarray
 
-def generate_texmap ( genmap, texture_family, mult, minh ):
+def generate_texmap ( genmap, texture_family, metmap, mult, minh ):
     texmap = []
     #pull textures from texture family.
     pulldir = "textures/families/" + texture_family + "/"
@@ -971,6 +1130,56 @@ def generate_texmap ( genmap, texture_family, mult, minh ):
 
         return (int(r), int(g), int(b))
 
+    def get_patch():
+        patch = []
+        metaldir = "textures/common/metal_patches/"
+        metalinfofile = "metal_patches_info.txt"
+
+        metalinfofileobj = open(metaldir + metalinfofile, 'r')
+        metaltext = metalinfofileobj.read()
+        metalinfofileobj.close()
+
+        possible_patches = metaltext.split("\n")
+
+        metalfilename = random.choice(possible_patches)
+        
+        ts = []
+        with Image.open(metaldir + metalfilename) as tex:
+            ts = list(tex.getdata())
+            tex.close()
+        hi = 0
+        while hi < 32:
+            wi = 0
+            row = []
+            while wi < 32:
+                index = hi * 32 + wi
+                row.append(ts[index])
+                wi = wi + 1
+            patch.append(row)
+            hi = hi + 1
+
+        return patch
+
+    metimg = get_patch()
+
+    metcoords = []
+
+    n = 0
+    while (n < len(metmap)):
+        m = 0
+        while (m < len(metmap[0])):
+            up = 0
+            if(n > 0):
+                up = metmap[n-1][m][0]
+            left = 0
+            if(m > 0):
+                left = metmap[n][m-1][0]
+            if(metmap[n][m][0] != 0) and (up == 0) and (left == 0):
+                metcoords.append([m * 16, n * 16])
+            m = m + 1
+        n = n + 1
+
+    print("texture blend start")
     n = 0
     while (n < total_height):
         m = 0
@@ -983,8 +1192,28 @@ def generate_texmap ( genmap, texture_family, mult, minh ):
             m = m + 1
         texmap.append(row)
         n = n + 1
-    #place metal patches...
+    print("texture blend finished")
+    print("placing metal textures")
+    #place metal patches
+    r = 0
+    while (r < len(metcoords)):
+        n = 0
+        while n < 32:
+            m = 0
+            while m < 32:
+                xs = metcoords[r][0] + m
+                ys = metcoords[r][1] + n
 
+                pixch = texmap[ys][xs]
+
+                ro = pixch[0] * (100 - metimg[n % 64][m % 64][3]) / 100 + metimg[n % 64][m % 64][0] * metimg[n % 64][m % 64][3] / 100
+                go = pixch[1] * (100 - metimg[n % 64][m % 64][3]) / 100 + metimg[n % 64][m % 64][1] * metimg[n % 64][m % 64][3] / 100
+                bo = pixch[2] * (100 - metimg[n % 64][m % 64][3]) / 100 + metimg[n % 64][m % 64][2] * metimg[n % 64][m % 64][3] / 100
+                texmap[ys][xs] = (int(ro), int(go), int(bo))
+                m = m + 1
+            n = n + 1
+        r = r + 1
+    print("metal textures finished")
     
     return texmap
 
@@ -1196,18 +1425,10 @@ def main( map_properties ):
     genmap = []
     fliptype = random.randint(0, 5)
 
-    ft_index = ["Horizontal", "Vertical", "BLTR", "TLBR", "Corners", "Crosses"]
-    generation_types = ["prefab", "voronoi", "paths"]
+    ft_index = ["Horizontal", "Vertical", "TLBR", "BLTR", "Corners", "Crosses"]
+    generation_types = ["prefab", "voronoi", "paths", "grid"]
     if map_properties["generation_type"] not in generation_types:
         map_properties["generation_type"] = random.choice(generation_types)
-
-    #currently locking down fliptypes for paths - 2-5 are of poor quality or nonexistent.
-    if(map_properties["generation_type"] == "paths"):
-        fliptype = random.randint(0, 1)
-
-    #currently locking down fliptypes for prefabs - haven't added 2-5
-    if(map_properties["generation_type"] == "prefab"):
-        fliptype = random.randint(0, 1)
 
     #locking down fliptypes for oblong maps. Optional, but I'm just being safe atm.
     if(map_properties["mapsizex"] > map_properties["mapsizey"]):
@@ -1263,6 +1484,14 @@ def main( map_properties ):
         #keep in mind:
         # - seam blur is: 0
         # - general blur is: 3
+    elif(map_properties["generation_type"] == "grid"):
+        print("Using Grid.")
+        os.chdir(curdir + '/path_generation')
+        genmap = grid_generation.grid_generation.generate_map_using_grid(map_properties, start_positions, fliptype)
+        genmap = mirror_array(genmap, fliptype)
+        #genmap = atrophymap(genmap, 30) #currently not resulting in what I want, we'll work on it.
+        genmap = blurmap(genmap, 3, 0, fliptype)
+        os.chdir(curdir)
     
     #normalize height
     mult, minh = normalize_height(genmap)
@@ -1288,14 +1517,14 @@ def main( map_properties ):
     while n < len(metmap):
         m = 0
         while(m < len(metmap[n])):
-            metmap_img_pixels[n, m] = metmap[n][m]
+            metmap_img_pixels[m, n] = metmap[n][m]
             m = m + 1
         n = n + 1
     metmap_img.save(dirname + mapname + '_metal.bmp')
 
     metmap_filename = dirname + mapname + '_metal.bmp'
     #TextureMap
-    texmap = generate_texmap(genmap, texture_picked, mult, minh)
+    texmap = generate_texmap(genmap, texture_picked, metmap, mult, minh)
 
     texmap_img = Image.new('RGB', (map_properties["mapsizex"] * 512, map_properties["mapsizey"] * 512), 'black')
     texmap_img_pixels = texmap_img.load()
@@ -1501,9 +1730,9 @@ if __name__ == "__main__":
     map_properties = {
         "mapsizex": 12,
         "mapsizey": 12,
-        "seed": 29995,
+        "seed": 29999,
         "numplayers": 8,
-        "generation_type": "prefab"     #prefab, voronoi, paths
+        "generation_type": "grid"     #prefab, voronoi, paths, grid
         }
     main(map_properties)
     
