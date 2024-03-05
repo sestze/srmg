@@ -282,7 +282,8 @@ def generate_map_using_voronoi (map_properties, start_positions, fliptype):
                 if(pointinfo[start][2] > pointinfo[end][2]):
                     rwc = q * rw * 0.75 + p * rw * 1.25
                 if((apx >= 0) and (apx <= dst) and abs(apy) < (rwc / 2)):
-                    hght = q * pointinfo[start][2] + p * pointinfo[end][2]
+                    #hght = q * pointinfo[start][2] + p * pointinfo[end][2]
+                    hght = cubic(p, 0, pointinfo[start][2], 1, pointinfo[end][2])
                     genmap[n][m] = hght
                 m = m + 1
             n = n + 1
