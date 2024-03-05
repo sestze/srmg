@@ -179,7 +179,6 @@ def generate_map_using_voronoi (map_properties, start_positions, fliptype):
         
     #set heights based on voronoi
     voronoi_type = random.randint(0, 3)
-    voronoi_type = 2
     if(voronoi_type == 0):
         print("\tvoronoi_type: Euclid")
     if(voronoi_type == 1):
