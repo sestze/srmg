@@ -9,16 +9,15 @@
 #   - We place contour hills in these places to act as obstacles
 
 #Issues:
-#   - quads are close to 100% fucked 100% of the time
-#       - now fucked a little bit less
-#       - crosses are 100% fucked 100% of the time.
-#   - When it gives me a big hill, it gives me a BIG HILL. a map that scales to 950 height now scales to 2300, for example
+
 
 import random
 import struct
 import zlib
 import math
 import os
+
+import copy
 
 from PIL import Image
 
@@ -41,7 +40,7 @@ def generate_map_using_paths (map_properties, start_positions, fliptype):
         endspline = int(endspline * height)
     if(fliptype == 2) or (fliptype == 3) or (fliptype == 4) or (fliptype == 5):
         startspline = int(startspline * (height + width) / 2)
-        startspline = int(endspline * (height + width) / 2)
+        endspline = int(endspline * (height + width) / 2)
 
     numpaths = random.randint(2, 4)
     if(fliptype == 4) or (fliptype == 5):
@@ -87,7 +86,7 @@ def generate_map_using_paths (map_properties, start_positions, fliptype):
     while(n < len(start_positions)):
         xvar = start_positions[n][0] * width
         yvar = start_positions[n][1] * height
-        path_points.append([xvar, yvar, 48])
+        path_points.append([xvar, yvar, 24])
         n = n + 1
     #defining the splines
     spline_startpoints = []
@@ -335,30 +334,48 @@ def generate_map_using_paths (map_properties, start_positions, fliptype):
         genmap.append(row)
         n = n + 1
 
+    def hill_func( var, xo, yo, xt, yt, hilltype, debug=0):
+        if(var < xo):
+            var = xo
+        if (var > xt):
+            var = xt
+
+        #hill_funcs should go from radius 0 (center) to maxradius (furthest slope)
+        #hill_funcs output go from maxheight to 0
+        outval = 0
+        #0 - decelerate (humps)
+        if(hilltype == 0):
+            outval = (yt - yo) * (1 - pow(20, ((var - xt) / (xt - xo)))) + yo
+        #1 - accelerate (mesa)
+        if(hilltype == 1):
+            halfway = (xo + xt) / 2
+            outval = 0
+            if(var < halfway):
+                outval = yt
+            else:
+                outval = (yt - yo) * (1 - pow(1 - pow((var - xt) / (xt - halfway),2),0.5)) + yo
+        #2 - constant
+        if(hilltype == 2):
+            outval = yt - (var - xo) / (xt - xo) * (yt - yo)
+
+        if(debug == 1):
+            print("For hilltype " + str(hilltype))
+            print(str(var) + ", (" + str(xo) + ", " + str(yo) + "), (" + str(xt) + ", " + str(yt) + ")")
+            print("\tyields: " + str(outval))
+        return outval
+
     def make_contour_hill( xplace, yplace, radius, genmap, wobble, hilltype ):
         primes = [1, 2, 3, 5, 7]
         hill_wobstr = wobble
-        hill_inc = 5 / 2
-        hill_start = 5 / 2
-        if(hilltype == 0):
-            hill_inc = 10 / 2
-            hill_start = 10 / 2
-        if(hilltype == 1):
-            hill_inc = 1 / 2
-            hill_start = 1 / 2
-
-        hill_maxh = genmap[yplace][xplace] + random.randint(2, 5) * 10
-
-        #hilltypes:
-        #0 - decelerate (humps)
-        #1 - accelerate into maxheight (mesa)
-        #2 - constant into maxheight or boundary
+        hill_start = 0
+        
+        hill_maxh = random.randint(2, 5) * 10
 
         print("hill: " + str(xplace) + ", " + str(yplace) + ", " + str(radius))
-        print("hillstr, hillinc: " + str(hill_wobstr) + ", " + str(hill_inc))
+        print("hillstr: " + str(hill_wobstr))
         print("hillmax, hilltype: " + str(hill_maxh) + ", " + str(hilltype))
 
-        genmap_output = genmap.copy()
+        genmap_output = copy.deepcopy(genmap)
 
         sinstr = []
         n = 0
@@ -386,7 +403,7 @@ def generate_map_using_paths (map_properties, start_positions, fliptype):
         home = radius - hill_wobstr
         stored = 0
         run = 0
-        while ((home - (minpos / maxpos) * hill_wobstr) > 0) and (stored < hill_maxh):
+        while ((home - (minpos / maxpos) * hill_wobstr) > 0):
             n = int(max(yplace - radius, 0))
             while n < int(min(yplace + radius, height)):
                 m = int(max(xplace - radius, 0))
@@ -414,23 +431,14 @@ def generate_map_using_paths (map_properties, start_positions, fliptype):
                     curverad = home + hill_wobstr * func_out
                     if(curverad > dst):
                         if(run == 0):
-                            genmap_output[n][m] = genmap[n][m] + hill_start
-                        else:
-                            genmap_output[n][m] = genmap[n][m] + hill_inc
-                        stored = genmap_output[n][m]
+                            genmap_output[n][m] = genmap[n][m] + hill_func(home, 0, hill_start, radius, hill_maxh, hilltype)
                     m = m + 1
                 n = n + 1
-            run = run + 1   #Trying to figure out why I need this but whatever
             home = home - hill_wobstr / 2
-            if(hilltype == 0):
-                hill_inc = hill_inc * 0.9
-                if(run > 30):
-                    stored = hill_maxh + 1
-            if(hilltype == 1):
-                hill_inc = hill_inc * 1.1
+            
         return genmap_output
 
-    wobble = random.randint(1,5) * 3
+    wobble = random.randint(3,7) * 3
     hilltype = random.randint(0, 2)
     #placing hill
     print("placing hills")

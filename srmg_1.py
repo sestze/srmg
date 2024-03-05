@@ -107,10 +107,11 @@ def mirror_array ( inmap, fliptype ):
         n = 0
         while n < (height):
             m = 0
-            while m < (-1 * (width / height) * abs(n - height / 2) + width / 2):
-                genmap_copy[m][n] = inmap[n][m]
-                genmap_copy[(height - 1) - n][(width - 1) - m] = inmap[n][m]
-                genmap_copy[(height - 1) - m][(width - 1) - n] = inmap[n][m]
+            while m < (-1 * (width / height) * abs(n - height / 2) + width / 2) + 1:
+                if( m < width ):
+                    genmap_copy[m][n] = inmap[n][m]
+                    genmap_copy[(height - 1) - n][(width - 1) - m] = inmap[n][m]
+                    genmap_copy[(height - 1) - m][(width - 1) - n] = inmap[n][m]
                 m = m + 1
             n = n + 1
     print("mirroring complete")        
@@ -883,11 +884,11 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
         while n < mexcount:
             ubound = int(mexdst / pow(2, 0.5))
             bbound = int(ycoord - mexdst / pow(2, 0.5))
-            lbound = mexchk
+            lbound = int(mexdst / pow(2, 0.5))
             rbound = int(xcoord - mexdst / pow(2, 0.5))
 
             yvar = random.randint(ubound, bbound)
-            xmax = max(int(-1 * (xcoord/ycoord) * (yvar - ycoord / 2) + xcoord / 2), lbound) + 1
+            xmax = max(int(-1 * (xcoord/ycoord) * abs(yvar - ycoord / 2) + xcoord / 2 - mexdst), lbound) + 1
             
             possiblepoint = [random.randint(lbound, xmax), yvar]
             m = 0
@@ -910,7 +911,7 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
 
                 if(dst < mexdst) or (Skip == True):
                     yvar = random.randint(ubound, bbound)
-                    xmax = max(int(-1 * (xcoord/ycoord) * (yvar - ycoord / 2) + xcoord / 2), lbound) + 1
+                    xmax = max(int(-1 * (xcoord/ycoord) * abs(yvar - ycoord / 2) + xcoord / 2 - mexdst), lbound) + 1
             
                     possiblepoint = [random.randint(lbound, xmax), yvar]
                     m = 0
@@ -1122,13 +1123,13 @@ def generate_texmap ( genmap, texture_family, metmap, mult, minh ):
         b = curpixel[2]
 
         gradmag = pow(pow(gradient[n][m][0],2) + pow(gradient[n][m][1], 2),0.5)
-        p = max(gradmag / 1, 1)
+        p = min(gradmag / 16, 1)
         q = 1-p
         nr = r * q
         ng = g * q
         nb = b * q
 
-        return (int(r), int(g), int(b))
+        return (int(nr), int(ng), int(nb))
 
     def get_patch():
         patch = []
@@ -1206,15 +1207,15 @@ def generate_texmap ( genmap, texture_family, metmap, mult, minh ):
 
                 pixch = texmap[ys][xs]
 
-                ro = pixch[0] * (100 - metimg[n % 64][m % 64][3]) / 100 + metimg[n % 64][m % 64][0] * metimg[n % 64][m % 64][3] / 100
-                go = pixch[1] * (100 - metimg[n % 64][m % 64][3]) / 100 + metimg[n % 64][m % 64][1] * metimg[n % 64][m % 64][3] / 100
-                bo = pixch[2] * (100 - metimg[n % 64][m % 64][3]) / 100 + metimg[n % 64][m % 64][2] * metimg[n % 64][m % 64][3] / 100
+                ro = pixch[0] * (255 - metimg[n % 32][m % 32][3]) / 255 + metimg[n % 32][m % 32][0] * metimg[n % 32][m % 32][3] / 255
+                go = pixch[1] * (255 - metimg[n % 32][m % 32][3]) / 255 + metimg[n % 32][m % 32][1] * metimg[n % 32][m % 32][3] / 255
+                bo = pixch[2] * (255 - metimg[n % 32][m % 32][3]) / 255 + metimg[n % 32][m % 32][2] * metimg[n % 32][m % 32][3] / 255
                 texmap[ys][xs] = (int(ro), int(go), int(bo))
                 m = m + 1
             n = n + 1
         r = r + 1
     print("metal textures finished")
-    
+   
     return texmap
 
 def generate_startpositions ( fliptype, map_properties ):
@@ -1479,7 +1480,7 @@ def main( map_properties ):
         #genmap, fliptype = path_generation.path_generation.generate_map_using_paths(map_properties)
         genmap = path_generation.path_generation.generate_map_using_paths(map_properties, start_positions, fliptype)
         genmap = mirror_array(genmap, fliptype)
-        genmap = blurmap(genmap, 3, 0, fliptype)
+        genmap = blurmap(genmap, 3, 5, fliptype)
         os.chdir(curdir)
         #keep in mind:
         # - seam blur is: 0
@@ -1730,9 +1731,9 @@ if __name__ == "__main__":
     map_properties = {
         "mapsizex": 12,
         "mapsizey": 12,
-        "seed": 29999,
+        "seed": 672,
         "numplayers": 8,
-        "generation_type": "grid"     #prefab, voronoi, paths, grid
+        "generation_type": "voronoi"     #prefab, voronoi, paths, grid
         }
     main(map_properties)
     

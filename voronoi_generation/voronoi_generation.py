@@ -46,6 +46,10 @@ def generate_map_using_voronoi (map_properties, start_positions, fliptype):
     def cubic(val, xo, yo, xt, yt, dbg=0):
         if(dbg != 0):
             print("cubic spline function: " + str(val) + ", " + str(xo) + ", " + str(yo) + ", " + str(xt) + ", " + str(yt))
+        if(val < xo):
+            val = xo
+        if(val > xt):
+            val = xt
         A = (-2 * (yt - yo)) / pow((xt - xo), 3)
         B = 3 * (yt - yo) / pow((xt - xo), 2)
         C = 0
@@ -61,8 +65,32 @@ def generate_map_using_voronoi (map_properties, start_positions, fliptype):
     voronoi_points = []
     n = 0
     while n < len(start_positions):
-        voronoi_points.append([int(start_positions[n][0] * width), int(start_positions[n][1] * height), random.choice([startheight, frontheight])])
+        voronoi_points.append([int(start_positions[n][0] * width), int(start_positions[n][1] * height), random.choice([startheight, frontheight]), 0])
         n = n + 1
+
+    #external points
+    #as a circle, not a square
+    external = 100
+    extdiff = 20
+    extsprd = 16
+    if(random.uniform(0, 1) < 0.5):
+        external = 0
+    rad = max(width, height) / pow(2, 0.5)
+    cx = width / 2
+    cy = height / 2
+    n = 0
+    while n < 8:
+        px = cx + rad * math.cos(n * 2 * math.pi / 8)
+        py = cy + rad * math.sin(n * 2 * math.pi / 8)
+        voronoi_points.append([int(px), int(py), external, 1])
+        n = n + 1
+        
+    #if corners or crosses, nix the middle.
+    if(fliptype == 4) or (fliptype == 5):
+        voronoi_points.append([int(cx), int(cy), external, 1])
+    if(fliptype == 2) or (fliptype == 3):
+        if(random.uniform(0, 1) < 0.5):
+            voronoi_points.append([int(cx), int(cy), external, 1])
         
     #other generated points
     mindist = 100 * (map_properties["mapsizex"] + map_properties["mapsizey"]) / 24
@@ -100,7 +128,7 @@ def generate_map_using_voronoi (map_properties, start_positions, fliptype):
             xpos = random.randint(int(xs), xmax)
             
 
-        setheight = random.randint(0, 10) * 10
+        setheight = random.randint(1, 4) * 20
         r = 5000
         m = 0
         while (m < len(voronoi_points)) and (r > 0):
@@ -118,27 +146,52 @@ def generate_map_using_voronoi (map_properties, start_positions, fliptype):
                     ypos = random.randint(int(ys), int(ymax))
                 elif(fliptype == 3):
                     xpos = random.randint(xs, xtot)
-                    ymax = int(ycoord/xcoord * xvar - mindist)
+                    ymax = int(height/width * xpos - mindist)
                     ypos = random.randint(int(ymax), int(ytot))
                 elif(fliptype == 5):
                     ypos = random.randint(ys, ytot)
-                    xmax = int(-1 * (width/height) * (ypos - height / 2) + width / 2)
+                    xmax = int(-1 * (width/height) * abs(ypos - height / 2) + width / 2)
                     xpos = random.randint(int(xs), xmax)
             r = r - 1
             m = m + 1
         if (r > 0):
-            voronoi_points.append([xpos, ypos, setheight])
+            voronoi_points.append([xpos, ypos, setheight, 0])
+            if(fliptype == 0):
+                voronoi_points.append([width - 1 - xpos, ypos, setheight, 1])
+            if(fliptype == 1):
+                voronoi_points.append([xpos, height - 1 - ypos, setheight, 1])
+            if(fliptype == 2):
+                voronoi_points.append([height - 1 - ypos, width - 1 - xpos, setheight, 1])
+            if(fliptype == 3):
+                voronoi_points.append([ypos, xpos, setheight, 1])
+            if(fliptype == 4):
+                voronoi_points.append([xpos, height - 1 - ypos, setheight, 1])
+                voronoi_points.append([width - 1 - xpos, ypos, setheight, 1])
+                voronoi_points.append([width - 1 - xpos, height - 1 - ypos, setheight, 1])
+            if(fliptype == 5):
+                voronoi_points.append([ypos, xpos, setheight, 1])
+                voronoi_points.append([width - 1 - xpos, height - 1 - ypos, setheight, 1])
+                voronoi_points.append([width - 1 - ypos, height - 1 - xpos, setheight, 1])
             n = n + 1
         else:
             print("bailed at " + str(n) + " voronoi placements - ran out of space.")
             n = voronoi_max
         
     #set heights based on voronoi
-    voronoi_type = random.randint(0, 1)
+    voronoi_type = random.randint(0, 3)
+    voronoi_type = 2
     if(voronoi_type == 0):
         print("\tvoronoi_type: Euclid")
     if(voronoi_type == 1):
         print("\tvoronoi_type: Manhattan")
+    if(voronoi_type == 2):
+        print("\tvoronoi_type: Fuzzy Euclid")
+    if(voronoi_type == 3):
+        print("\tvoronoi_type: Fuzzy Manhattan")
+
+    voronoi_fuzzy_min = 50
+    voronoi_fuzzy_max = 400
+    fuzzy_pow = 6
     
     n = 0
     while (n < height):
@@ -147,24 +200,43 @@ def generate_map_using_voronoi (map_properties, start_positions, fliptype):
         while (m < width):
             dstmin = 999999
             vn_height = startheight
+            alldst = [*range(len(voronoi_points))]
             r = 0
             while (r < len(voronoi_points)):
                 dst = 0
-                if(voronoi_type == 0):
-                    #euclid
+                if(voronoi_type == 0) or (voronoi_type == 2):
+                    #euclid or fuzzy euclid
                     dst = pow(pow(m - voronoi_points[r][0], 2) + pow(n - voronoi_points[r][1], 2), 0.5)
-                    if(dst < dstmin):
-                        dstmin = dst
-                        vn_height = voronoi_points[r][2]
-                    
-                if(voronoi_type == 1):
-                    #manhattan
+                if(voronoi_type == 1) or (voronoi_type == 3):
+                    #manhattan or fuzzy manhattan
                     dst = abs(m - voronoi_points[r][0]) + abs(n - voronoi_points[r][1])
-                    if(dst < dstmin):
-                        dstmin = dst
-                        vn_height = voronoi_points[r][2]
-                        
+                alldst[r] = dst
+                if(dst < dstmin):
+                    dstmin = dst
+                    vn_height = voronoi_points[r][2]
+                    #used for making terrain unusable - currently looks a bit too wonky.
+##                    if(voronoi_points[r][3] == 1):
+##                        cm = (m // extsprd) % 2
+##                        cn = (n // extsprd) % 2
+##                        if(cm == cn):
+##                            vn_height = voronoi_points[r][2]
+##                        else:
+##                            if(voronoi_points[r][2] > 50):
+##                                vn_height = voronoi_points[r][2] - extdiff
+##                            else:
+##                                vn_height = voronoi_points[r][2] + extdiff
                 r = r + 1
+            if(dstmin > voronoi_fuzzy_min) and ((voronoi_type == 2) or (voronoi_type == 3)):
+                r = 0
+                totdst = 0
+                avg = 0
+                while r < len(voronoi_points):
+                    if(alldst[r] < dstmin + voronoi_fuzzy_max):
+                       avg = avg + voronoi_points[r][2] * (1 / pow(alldst[r] - voronoi_fuzzy_min, fuzzy_pow))
+                       totdst = totdst + (1 / pow((alldst[r] - voronoi_fuzzy_min), fuzzy_pow))
+                    r = r + 1
+                avg = avg / totdst
+                vn_height = avg
             row.append(vn_height)
             m = m + 1
         genmap.append(row)
@@ -204,9 +276,13 @@ def generate_map_using_voronoi (map_properties, start_positions, fliptype):
                 ay = n - pointinfo[start][1]
                 apx = ax * ux + ay * uy
                 apy = ax * px + ay * py
-                if((apx >= 0) and (apx <= dst) and abs(apy) < (rw / 2)):
-                    p = (max(min(apx / dst, 0.75), 0.25) - 0.25) * 2
-                    q = 1 - p
+                
+                p = (max(min(apx / dst, 0.75), 0.25) - 0.25) * 2
+                q = 1 - p
+                rwc = p * rw * 0.75 + q * rw * 1.25
+                if(pointinfo[start][2] > pointinfo[end][2]):
+                    rwc = q * rw * 0.75 + p * rw * 1.25
+                if((apx >= 0) and (apx <= dst) and abs(apy) < (rwc / 2)):
                     hght = q * pointinfo[start][2] + p * pointinfo[end][2]
                     genmap[n][m] = hght
                 m = m + 1
@@ -227,15 +303,15 @@ def generate_map_using_voronoi (map_properties, start_positions, fliptype):
         ldst = 999999
         key = n
         rcnt = 0
-        while(m < len(voronoi_points)):
+        while(m < len(voronoi_points)) and (voronoi_points[n][3] != 1):
             dst = 0
-            if(voronoi_type == 0):
+            if(voronoi_type == 0) or (voronoi_type == 2):
                 #euclid
                 dst = pow(pow(voronoi_points[m][0] - voronoi_points[n][0], 2) + pow(voronoi_points[m][1] - voronoi_points[n][1], 2), 0.5)
-            if(voronoi_type == 1):
+            if(voronoi_type == 1) or (voronoi_type == 3):
                 #manhattan
                 dst = abs(voronoi_points[m][0] - voronoi_points[n][0]) + abs(voronoi_points[m][1] - voronoi_points[n][1])
-            if(dst < dstmin):
+            if(dst < dstmin) and (voronoi_points[m][3] != 1):
                 if(n != m):
                     if(voronoi_points[m][2] != voronoi_points[n][2]):
                         if((abs(voronoi_points[n][2] - voronoi_points[m][2])) / dst < slopetolerance):
@@ -249,7 +325,7 @@ def generate_map_using_voronoi (map_properties, start_positions, fliptype):
                                     genmap = make_ramp(genmap, voronoi_points, n, m, rampwidth)
                                     print("ramp formed between points " + str(n) + " and " + str(m))
                                     rcnt = rcnt + 1
-                            if(fliptype == 2):
+                            if(fliptype == 2) or (fliptype == 3) or (fliptype == 4) or (fliptype == 5):
                                 vpd = pow(pow(voronoi_points[m][0] - voronoi_points[n][0], 2) + pow(voronoi_points[m][1] - voronoi_points[m][1], 2), 0.5)
                                 vecx = (voronoi_points[m][0] - voronoi_points[n][0]) / vpd
                                 vecy = (voronoi_points[m][1] - voronoi_points[m][1]) / vpd
@@ -262,7 +338,7 @@ def generate_map_using_voronoi (map_properties, start_positions, fliptype):
                                     genmap = make_ramp(genmap, voronoi_points, n, m, rampwidth)
                                     print("ramp formed between points " + str(n) + " and " + str(m))
                                     rcnt = rcnt + 1
-            if(dst < ldst):
+            if(dst < ldst) and (voronoi_points[m][3] != 1):
                 if(n != m):
                     if(voronoi_points[m][2] != voronoi_points[n][2]):
                         if((abs(voronoi_points[n][2] - voronoi_points[m][2])) / dst < slopelastresort):
@@ -287,7 +363,7 @@ def generate_map_using_voronoi (map_properties, start_positions, fliptype):
                                     ldst = dst
                                     key = m
             m = m + 1
-        if(rcnt == 0) and (key != n):
+        if(rcnt == 0) and (key != n) and (voronoi_points[n][3] != 1) and (voronoi_points[key][3] != 1):
             genmap = make_ramp(genmap, voronoi_points, n, key, rampwidth)
             print("last ditch ramp formed between points " + str(n) + " and " + str(key))
         n = n + 1
