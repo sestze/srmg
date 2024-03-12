@@ -15,7 +15,6 @@
 #   - Heightmaps
 #       - Offer a different generation method that uses a premade heightmap
 #   - Metalmap
-#       - Current placement on 2/3 offer double-stacked mexes near mirror line.
 #   - Texturemap
 
 
@@ -643,7 +642,7 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
     #currently just even spread + noise, later we can analyze the condensemap to do something more clever
     #mexcount = max(int(((map_properties["mapsizex"] * map_properties["mapsizey"]) - map_properties["numplayers"] * 3) / 3.5), 2)
     mexcount = map_properties["numplayers"] * 4 * (map_properties["mapsizex"] + map_properties["mapsizey"]) // 24
-    basemexcount = mexcount + map_properties["numplayers"] * 3
+    basemexcount = mexcount + map_properties["numplayers"] * random.randint(3, 6)
     mexcount = int(mexcount / 2)
     if(fliptype == 4) or (fliptype == 5):
         mexcount = mexcount // 2
@@ -1118,9 +1117,9 @@ def generate_texmap ( genmap, texture_family, metmap, mult, minh, pris_tht ):
             rb = tex[key+1][y%rh][x%rw][2]
 
             if(pris_tht != -1):
-                rr = tex[key+1][y%lh][x%lw][0] * mrg + (base + extend * math.cos(ip[key+1][2])) * (1 - mrg)
-                rg = tex[key+1][y%lh][x%lw][1] * mrg + (base + extend * math.cos(ip[key+1][2] + math.pi * 2 / 3)) * (1 - mrg)
-                rb = tex[key+1][y%lh][x%lw][2] * mrg + (base + extend * math.cos(ip[key+1][2] + math.pi * 4 / 3)) * (1 - mrg)
+                rr = tex[key+1][y%rh][x%rw][0] * mrg + (base + extend * math.cos(ip[key+1][2])) * (1 - mrg)
+                rg = tex[key+1][y%rh][x%rw][1] * mrg + (base + extend * math.cos(ip[key+1][2] + math.pi * 2 / 3)) * (1 - mrg)
+                rb = tex[key+1][y%rh][x%rw][2] * mrg + (base + extend * math.cos(ip[key+1][2] + math.pi * 4 / 3)) * (1 - mrg)
 
             p = n * height / 100 - key
             q = 1 - p
@@ -1706,32 +1705,31 @@ def main( map_properties ):
                       "[STARTPOINT-2-NAME]": "Bottom Side",
                       "[STARTPOINT-2-NAME]": "BS"}
     if(fliptype == 2):      #quads
-        if(choice == 0):    # Top left/bottom Right
-            msb_config = {"[STARTPOINT-1-TL]": "{0, 0}",
-                      "[STARTPOINT-1-TR]": "{" + str(int(map_properties["mapsizex"] * 512/8)) + ", 0}",
-                      "[STARTPOINT-1-BL]": "{0, " + str(int(map_properties["mapsizey"] * 512/8)) + "}",
-                      "[STARTPOINT-1-BR]": "{" + str(int(map_properties["mapsizex"] * 512/8)) + ", " + str(int(map_properties["mapsizey"] * 512/8)) + "}",
-                      "[STARTPOINT-1-NAME]": "Top Left",
-                      "[STARTPOINT-1-SHORT]": "TL",
-                      "[STARTPOINT-2-TL]": "{" + str(int(map_properties["mapsizex"] * 7 * 512/8)) + ", " + str(int(map_properties["mapsizey"] * 7 * 512/8)) + "}",
-                      "[STARTPOINT-2-TR]": "{" + str(int(map_properties["mapsizex"] * 512)) + ", " + str(int(map_properties["mapsizey"] * 7 * 512/8)) + "}",
-                      "[STARTPOINT-2-BL]": "{" + str(int(map_properties["mapsizex"] * 7 * 512/8)) + ", " + str(int(map_properties["mapsizey"] * 512)) + "}",
-                      "[STARTPOINT-2-BR]": "{" + str(int(map_properties["mapsizex"] * 512)) + ", " + str(int(map_properties["mapsizey"] * 512)) + "}",
-                      "[STARTPOINT-2-NAME]": "Bottom Right",
-                      "[STARTPOINT-2-NAME]": "BR"}
-        if(choice == 1):    # Bottom left/top right
-            msb_config = {"[STARTPOINT-1-TL]": "{0, " + str(int(map_properties["mapsizey"] * 7 * 512/8)) + "}",
-                      "[STARTPOINT-1-TR]": "{" + str(int(map_properties["mapsizex"] * 512/8)) + ", " + str(int(map_properties["mapsizey"] * 7 * 512/8)) + "}",
-                      "[STARTPOINT-1-BL]": "{0, " + str(int(map_properties["mapsizey"] * 512)) + "}",
-                      "[STARTPOINT-1-BR]": "{" + str(int(map_properties["mapsizex"] * 512/8)) + ", " + str(int(map_properties["mapsizey"] * 512)) + "}",
-                      "[STARTPOINT-1-NAME]": "Bottom Left",
-                      "[STARTPOINT-1-SHORT]": "BL",
-                      "[STARTPOINT-2-TL]": "{" + str(int(map_properties["mapsizex"] * 7 * 512/8)) + ", 0}",
-                      "[STARTPOINT-2-TR]": "{" + str(int(map_properties["mapsizex"] * 512)) + ", 0}",
-                      "[STARTPOINT-2-BL]": "{" + str(int(map_properties["mapsizex"] * 7 * 512/8)) + ", " + str(int(map_properties["mapsizey"] * 512)) + "}",
-                      "[STARTPOINT-2-BR]": "{" + str(int(map_properties["mapsizex"] * 512)) + ", " + str(int(map_properties["mapsizey"] * 512)) + "}",
-                      "[STARTPOINT-2-NAME]": "Top Right",
-                      "[STARTPOINT-2-NAME]": "TR"}
+        msb_config = {"[STARTPOINT-1-TL]": "{0, 0}",
+                  "[STARTPOINT-1-TR]": "{" + str(int(map_properties["mapsizex"] * 512/8)) + ", 0}",
+                  "[STARTPOINT-1-BL]": "{0, " + str(int(map_properties["mapsizey"] * 512/8)) + "}",
+                  "[STARTPOINT-1-BR]": "{" + str(int(map_properties["mapsizex"] * 512/8)) + ", " + str(int(map_properties["mapsizey"] * 512/8)) + "}",
+                  "[STARTPOINT-1-NAME]": "Top Left",
+                  "[STARTPOINT-1-SHORT]": "TL",
+                  "[STARTPOINT-2-TL]": "{" + str(int(map_properties["mapsizex"] * 7 * 512/8)) + ", " + str(int(map_properties["mapsizey"] * 7 * 512/8)) + "}",
+                  "[STARTPOINT-2-TR]": "{" + str(int(map_properties["mapsizex"] * 512)) + ", " + str(int(map_properties["mapsizey"] * 7 * 512/8)) + "}",
+                  "[STARTPOINT-2-BL]": "{" + str(int(map_properties["mapsizex"] * 7 * 512/8)) + ", " + str(int(map_properties["mapsizey"] * 512)) + "}",
+                  "[STARTPOINT-2-BR]": "{" + str(int(map_properties["mapsizex"] * 512)) + ", " + str(int(map_properties["mapsizey"] * 512)) + "}",
+                  "[STARTPOINT-2-NAME]": "Bottom Right",
+                  "[STARTPOINT-2-NAME]": "BR"}
+    if(fliptype == 3):    # Bottom left/top right
+        msb_config = {"[STARTPOINT-1-TL]": "{0, " + str(int(map_properties["mapsizey"] * 7 * 512/8)) + "}",
+                  "[STARTPOINT-1-TR]": "{" + str(int(map_properties["mapsizex"] * 512/8)) + ", " + str(int(map_properties["mapsizey"] * 7 * 512/8)) + "}",
+                  "[STARTPOINT-1-BL]": "{0, " + str(int(map_properties["mapsizey"] * 512)) + "}",
+                  "[STARTPOINT-1-BR]": "{" + str(int(map_properties["mapsizex"] * 512/8)) + ", " + str(int(map_properties["mapsizey"] * 512)) + "}",
+                  "[STARTPOINT-1-NAME]": "Bottom Left",
+                  "[STARTPOINT-1-SHORT]": "BL",
+                  "[STARTPOINT-2-TL]": "{" + str(int(map_properties["mapsizex"] * 7 * 512/8)) + ", 0}",
+                  "[STARTPOINT-2-TR]": "{" + str(int(map_properties["mapsizex"] * 512)) + ", 0}",
+                  "[STARTPOINT-2-BL]": "{" + str(int(map_properties["mapsizex"] * 7 * 512/8)) + ", " + str(int(map_properties["mapsizey"] * 512)) + "}",
+                  "[STARTPOINT-2-BR]": "{" + str(int(map_properties["mapsizex"] * 512)) + ", " + str(int(map_properties["mapsizey"] * 512)) + "}",
+                  "[STARTPOINT-2-NAME]": "Top Right",
+                  "[STARTPOINT-2-NAME]": "TR"}
 
     for key in msb_config:
         msb_file_text = msb_file_text.replace(key, str(msb_config[key]))
@@ -1792,7 +1790,7 @@ if __name__ == "__main__":
     map_properties = {
         "mapsizex": 12,
         "mapsizey": 12,
-        "seed": 1000,
+        "seed": 2255,
         "numplayers": 8,
         "generation_type": "voronoi",     #prefab, voronoi, paths, grid
         "prismatic": True               #reduces textures to b&w, then recolors at random

@@ -62,6 +62,7 @@ def generate_map_using_voronoi (map_properties, start_positions, fliptype):
         return retval
     #start points
     voronoi_max = (random.randint(4, 8) * (map_properties["mapsizex"] + map_properties["mapsizey"])) // 24
+    voronoi_dead_max = random.randint(1, 2)
     voronoi_points = []
     n = 0
     while n < len(start_positions):
@@ -96,7 +97,7 @@ def generate_map_using_voronoi (map_properties, start_positions, fliptype):
     mindist = 100 * (map_properties["mapsizex"] + map_properties["mapsizey"]) / 24
     #mindist = 100
     n = 0
-    while (n < voronoi_max):
+    while (n < voronoi_max + voronoi_dead_max):
         xtot = width - mindist
         ytot = height - mindist
         xs = mindist
@@ -116,15 +117,15 @@ def generate_map_using_voronoi (map_properties, start_positions, fliptype):
             ypos = random.randint(int(ys), int(ytot))
         elif(fliptype == 2):
             xpos = random.randint(xs, xtot)
-            ymax = int(height - height / width * xpos - mindist)
+            ymax = max(int(ys)+1, int(height - height / width * xpos - mindist))
             ypos = random.randint(int(ys), int(ymax))
         elif(fliptype == 3):
             xpos = random.randint(xs, xtot)
-            ymax = int(height/width * xpos - mindist)
+            ymax = min(int(height/width * xpos - mindist), int(ytot - 1))
             ypos = random.randint(int(ymax), int(ytot))
         elif(fliptype == 5):
             ypos = random.randint(ys, ytot)
-            xmax = int(-1 * (width/height) * (ypos - height / 2) + width / 2)
+            xmax = max(int(xs+1), int(-1 * (width/height) * abs(ypos - height / 2) + width / 2))
             xpos = random.randint(int(xs), xmax)
             
 
@@ -142,20 +143,24 @@ def generate_map_using_voronoi (map_properties, start_positions, fliptype):
                     ypos = random.randint(int(ys), int(ytot))
                 elif(fliptype == 2):
                     xpos = random.randint(xs, xtot)
-                    ymax = int(height - height / width * xpos - mindist)
+                    ymax = max(int(ys)+1, int(height - height / width * xpos - mindist))
                     ypos = random.randint(int(ys), int(ymax))
                 elif(fliptype == 3):
                     xpos = random.randint(xs, xtot)
-                    ymax = int(height/width * xpos - mindist)
+                    ymax = min(int(height/width * xpos - mindist), int(ytot - 1))
                     ypos = random.randint(int(ymax), int(ytot))
                 elif(fliptype == 5):
                     ypos = random.randint(ys, ytot)
-                    xmax = int(-1 * (width/height) * abs(ypos - height / 2) + width / 2)
+                    xmax = max(int(xs+1), int(-1 * (width/height) * abs(ypos - height / 2) + width / 2))
                     xpos = random.randint(int(xs), xmax)
             r = r - 1
             m = m + 1
         if (r > 0):
-            voronoi_points.append([xpos, ypos, setheight, 0])
+            noramp = 0
+            if(n >= voronoi_max):
+                noramp = 1
+                setheight = random.choice([0, 100])
+            voronoi_points.append([xpos, ypos, setheight, noramp])
             if(fliptype == 0):
                 voronoi_points.append([width - 1 - xpos, ypos, setheight, 1])
             if(fliptype == 1):
@@ -190,7 +195,9 @@ def generate_map_using_voronoi (map_properties, start_positions, fliptype):
 
     voronoi_fuzzy_min = 50
     voronoi_fuzzy_max = 400
-    fuzzy_pow = 6
+    fuzzy_pow = random.randint(4, 8)
+    if(voronoi_type == 2) or (voronoi_type == 3):
+        print("\tfuzzy_pow: " + str(fuzzy_pow))
     
     n = 0
     while (n < height):

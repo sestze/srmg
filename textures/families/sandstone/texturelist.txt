@@ -1,0 +1,6 @@
+sand_1.bmp,600,400
+sand_2.bmp,600,400
+sand_3.bmp,324,256
+sand_4.bmp,450,300
+sand_5.bmp,740,740
+sand_6.bmp,530,347
