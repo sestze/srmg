@@ -1005,7 +1005,7 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
     
     return pixelarray
 
-def generate_texmap ( genmap, texture_family, metmap, mult, minh ):
+def generate_texmap ( genmap, texture_family, metmap, mult, minh, pris_tht ):
     texmap = []
     #pull textures from texture family.
     pulldir = "textures/families/" + texture_family + "/"
@@ -1017,13 +1017,25 @@ def generate_texmap ( genmap, texture_family, metmap, mult, minh ):
     ti_byrow = textureinfo_text.split('\n')
     texturepack = []
     infopack = []
+    #decide between complementary options and single colors.
+    color_types = random.randint(0, 1)
+    if(pris_tht != -1):
+        if(color_types == 0):
+            print("... prismatic: single color")
+        if(color_types == 1):
+            print("... prismatic: complementary colors")
     n = 0
     while n < len(ti_byrow):
         commasep = ti_byrow[n].split(',')
         if(len(commasep) == 3):
             texturepack.append(commasep[0])
-            infopack.append([int(commasep[1]), int(commasep[2])])
-            print(str(commasep[0]) + ": " + str(commasep[1]) + ", " + str(commasep[2]))
+            pris_temp = pris_tht
+            if(pris_tht != -1):
+                pris_temp = pris_temp + random.uniform(math.pi / -12, math.pi / 12)
+                if(color_types == 1):
+                    pris_temp = pris_temp + random.randint(0, 1) * math.pi
+            infopack.append([int(commasep[1]), int(commasep[2]), pris_temp])
+            print(str(commasep[0]) + ": " + str(commasep[1]) + ", " + str(commasep[2]) + ", " + str(pris_temp))
         n = n + 1
     
     #expand...
@@ -1051,7 +1063,11 @@ def generate_texmap ( genmap, texture_family, metmap, mult, minh ):
             l = 0
             row = []
             while (l < w):
-                row.append(ts[m * w + l])
+                tup = ts[m * w + l]
+                if(pris_tht != -1):
+                    gry = (ts[m * w + l][0] + ts[m * w + l][0] + ts[m * w + l][0]) // 3
+                    tup = (gry, gry, gry)
+                row.append(tup)
                 l = l + 1
             ta.append(row)
             m = m + 1
@@ -1068,6 +1084,10 @@ def generate_texmap ( genmap, texture_family, metmap, mult, minh ):
         r = 0
         g = 0
         b = 0
+
+        mrg = 0.8
+        base = 200
+        extend = 255 - base
 
         if(len(tex) > 1):
             key = 0
@@ -1086,11 +1106,21 @@ def generate_texmap ( genmap, texture_family, metmap, mult, minh ):
             lg = tex[key][y%lh][x%lw][1]
             lb = tex[key][y%lh][x%lw][2]
 
+            if(pris_tht != -1):
+                lr = tex[key][y%lh][x%lw][0] * mrg + (base + extend * math.cos(ip[key][2])) * (1 - mrg)
+                lg = tex[key][y%lh][x%lw][1] * mrg + (base + extend * math.cos(ip[key][2] + math.pi * 2 / 3)) * (1 - mrg)
+                lb = tex[key][y%lh][x%lw][2] * mrg + (base + extend * math.cos(ip[key][2] + math.pi * 4 / 3)) * (1 - mrg)
+
             rw = ip[key+1][0]
             rh = ip[key+1][1]
             rr = tex[key+1][y%rh][x%rw][0]
             rg = tex[key+1][y%rh][x%rw][1]
             rb = tex[key+1][y%rh][x%rw][2]
+
+            if(pris_tht != -1):
+                rr = tex[key+1][y%lh][x%lw][0] * mrg + (base + extend * math.cos(ip[key+1][2])) * (1 - mrg)
+                rg = tex[key+1][y%lh][x%lw][1] * mrg + (base + extend * math.cos(ip[key+1][2] + math.pi * 2 / 3)) * (1 - mrg)
+                rb = tex[key+1][y%lh][x%lw][2] * mrg + (base + extend * math.cos(ip[key+1][2] + math.pi * 4 / 3)) * (1 - mrg)
 
             p = n * height / 100 - key
             q = 1 - p
@@ -1108,13 +1138,22 @@ def generate_texmap ( genmap, texture_family, metmap, mult, minh ):
             r = (tex[0][y%lh][x%lw][0] * 0.5 + hmod * 0.5)
             g = (tex[0][y%lh][x%lw][1] * 0.5 + hmod * 0.5)
             b = (tex[0][y%lh][x%lw][2] * 0.5 + hmod * 0.5)
+            
+            if(pris_tht != -1):
+                r = (tex[0][y%lh][x%lw][0] * 0.5 + hmod * 0.5) * mrg + (base + extend * math.cos(ip[0][2])) * (1 - mrg)
+                g = (tex[0][y%lh][x%lw][1] * 0.5 + hmod * 0.5) * mrg + (base + extend * math.cos(ip[0][2] + math.pi * 2 / 3)) * (1 - mrg)
+                b = (tex[0][y%lh][x%lw][2] * 0.5 + hmod * 0.5) * mrg + (base + extend * math.cos(ip[0][2] + math.pi * 4 / 3)) * (1 - mrg)
         else:
             #No found texture? (somehow something went very wrong) - just output expanded_heightmap
             hmod = 25 + height * 2
-
+            
             r = hmod
             g = hmod
             b = hmod
+            if(pris_tht != -1):
+                r = hmod * mrg + (base + extend * math.cos(pris_tht)) * (1 - mrg)
+                g = hmod * mrg + (base + extend * math.cos(pris_tht + math.pi * 2 / 3)) * (1 - mrg)
+                b = hmod * mrg + (base + extend * math.cos(pris_tht + math.pi * 4 / 3)) * (1 - mrg)
         return (int(r), int(g), int(b))
 
     def gradient_merge(m, n, gradient, curpixel):
@@ -1525,7 +1564,13 @@ def main( map_properties ):
 
     metmap_filename = dirname + mapname + '_metal.bmp'
     #TextureMap
-    texmap = generate_texmap(genmap, texture_picked, metmap, mult, minh)
+    pris_tht = random.uniform(0, math.pi * 2)
+    if(map_properties["prismatic"] != True):
+        pris_tht = -1
+
+    print("\tpris_tht: " + str(pris_tht))
+    
+    texmap = generate_texmap(genmap, texture_picked, metmap, mult, minh, pris_tht)
 
     texmap_img = Image.new('RGB', (map_properties["mapsizex"] * 512, map_properties["mapsizey"] * 512), 'black')
     texmap_img_pixels = texmap_img.load()
@@ -1601,6 +1646,22 @@ def main( map_properties ):
     mapinfo_vars["[MINHEIGHT]"] = int(int(mapinfo_vars["[MINHEIGHT]"]) + minh) / mult
     print("Updated [MAXHEIGHT] to: " + str(mapinfo_vars["[MAXHEIGHT]"]))
     print("Updated [MINHEIGHT] to: " + str(mapinfo_vars["[MINHEIGHT]"]))
+
+    if(map_properties["prismatic"] == True):
+        base = 200
+        extend = 255 - base
+        pris_r = (base + extend * math.cos(pris_tht)) / 255
+        pris_g = (base + extend * math.cos(pris_tht + math.pi * 2 / 3)) / 255
+        pris_b = (base + extend * math.cos(pris_tht + math.pi * 4 / 3)) / 255
+        mapinfo_vars["[FOGR]"] = 0.8 * pris_r
+        mapinfo_vars["[FOGG]"] = 0.8 * pris_g
+        mapinfo_vars["[FOGB]"] = 0.8 * pris_b
+        mapinfo_vars["[SKYR]"] = 0.8 * pris_r
+        mapinfo_vars["[SKYG]"] = 0.8 * pris_g
+        mapinfo_vars["[SKYB]"] = 0.8 * pris_b
+        mapinfo_vars["[WATR]"] = 0.67 * pris_r
+        mapinfo_vars["[WATG]"] = 0.8 * pris_g
+        mapinfo_vars["[WATB]"] = 1.0 * pris_b
 
     for key in mapinfo_vars:
         mapinfo_template_text = mapinfo_template_text.replace(key, str(mapinfo_vars[key]))
@@ -1731,9 +1792,10 @@ if __name__ == "__main__":
     map_properties = {
         "mapsizex": 12,
         "mapsizey": 12,
-        "seed": 672,
+        "seed": 1000,
         "numplayers": 8,
-        "generation_type": "voronoi"     #prefab, voronoi, paths, grid
+        "generation_type": "voronoi",     #prefab, voronoi, paths, grid
+        "prismatic": True               #reduces textures to b&w, then recolors at random
         }
     main(map_properties)
     
