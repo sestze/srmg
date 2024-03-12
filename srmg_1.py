@@ -38,6 +38,8 @@ import path_generation.path_generation
 
 import grid_generation.grid_generation
 
+import provided_generation.provided_generation
+
 #from typing import BinaryIO, List, Tuple
 from PIL import Image
 
@@ -655,8 +657,52 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
     mexchk = 4 #checks this many pixels left/right of the mex possiblepoint
     mexdst = 24 #* (map_properties["mapsizex"] + map_properties["mapsizey"]) // 24
     mexthresh = 0.32 #slope across mexchk up/down needs to be less than this
-    
-    if(fliptype == 0):
+
+    if(map_properties["generation_type"] == "provided"):
+        mexcount = basemexcount
+        n = 0
+        while n < mexcount:
+            #lbound = min(int(4 * xcoord / (2 * map_properties["mapsizex"])), int(4 * xcoord / 16))
+            lbound = mexchk
+            rbound = xcoord - mexchk
+            ubound = mexchk
+            bbound = ycoord - mexchk
+            
+            possiblepoint = [random.randint(lbound, rbound), random.randint(ubound, bbound)]
+            m = 0
+            r = 5000
+            while((m < len(metalpoints)) and (r > 0)):
+                dst = distfrom(possiblepoint[0], possiblepoint[1], metalpoints[m][0], metalpoints[m][1])
+                #mex sanity check
+                xl = max(possiblepoint[0] - mexchk, 0)
+                xm = min(possiblepoint[0] + mexchk, xcoord - 1)
+                yu = max(possiblepoint[1] - mexchk, 0)
+                yl = min(possiblepoint[1] + mexchk, ycoord - 1)
+
+                xs = abs(condensemap[possiblepoint[1]][xm] - condensemap[possiblepoint[1]][xl]) / (2 * mexchk)
+                ys = abs(condensemap[yu][possiblepoint[0]] - condensemap[yl][possiblepoint[0]]) / (2 * mexchk)
+
+                #print("xs: " + str(xs) + " / ys: " + str(ys))
+
+                Skip = False
+                if(xs > mexthresh) or (ys > mexthresh):
+                    Skip = True
+
+                if(dst < mexdst) or (Skip == True):
+                    possiblepoint = [random.randint(lbound, rbound), random.randint(ubound, bbound)]
+                    m = 0
+                    r = r - 1
+                else:
+                    m = m + 1
+                    r = 5000
+                
+            if(r == 0):
+                n = mexcount
+                print("too cramped, couldn't find places to put additional mexes")
+            else:
+                metalpoints.append(possiblepoint)
+            n = n + 1
+    elif(fliptype == 0):
         n = 0
         while n < mexcount:
             #lbound = min(int(4 * xcoord / (2 * map_properties["mapsizex"])), int(4 * xcoord / 16))
@@ -961,7 +1007,10 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
 
     #so, we mirror the pixels *manually*
     mirrorpix = []
-    mirrorpix = mirror_array(reg, fliptype)
+    if(map_properties["generation_type"] != "provided"):
+        mirrorpix = mirror_array(reg, fliptype)
+    else:
+        mirrorpix = copy.deepcopy(reg)
         
     metaltype = random.randint(0, 1)
     if(metaltype == 0):
@@ -1463,9 +1512,15 @@ def main( map_properties ):
     
     genmap = []
     fliptype = random.randint(0, 5)
+    if(map_properties["fliptype"] != -1):
+        fliptype = int(map_properties["fliptype"])
+        if(fliptype < 0):
+            fliptype = 0
+        if(fliptype > 5):
+            fliptype = 5
 
     ft_index = ["Horizontal", "Vertical", "TLBR", "BLTR", "Corners", "Crosses"]
-    generation_types = ["prefab", "voronoi", "paths", "grid"]
+    generation_types = ["prefab", "voronoi", "paths", "grid", "provided"]
     if map_properties["generation_type"] not in generation_types:
         map_properties["generation_type"] = random.choice(generation_types)
 
@@ -1530,6 +1585,12 @@ def main( map_properties ):
         genmap = mirror_array(genmap, fliptype)
         #genmap = atrophymap(genmap, 30) #currently not resulting in what I want, we'll work on it.
         genmap = blurmap(genmap, 3, 0, fliptype)
+        os.chdir(curdir)
+    elif(map_properties["generation_type"] == "provided"):
+        print("Using Provided.")
+        os.chdir(curdir + '/provided_generation')
+        genmap = provided_generation.provided_generation.generate_map_using_provided(map_properties)
+        start_positions.clear()
         os.chdir(curdir)
     
     #normalize height
@@ -1792,8 +1853,10 @@ if __name__ == "__main__":
         "mapsizey": 12,
         "seed": 2255,
         "numplayers": 8,
-        "generation_type": "voronoi",     #prefab, voronoi, paths, grid
-        "prismatic": True               #reduces textures to b&w, then recolors at random
+        "generation_type": "provided",     #prefab, voronoi, paths, grid, provided
+        "prismatic": True,               #reduces textures to b&w, then recolors at random
+        "provided_filename": "provided_input.bmp",   #located in /provided_generation/
+        "fliptype": -1                  #sets the fliptype manually if not -1.
         }
     main(map_properties)
     

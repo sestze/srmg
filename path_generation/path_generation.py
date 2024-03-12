@@ -402,7 +402,6 @@ def generate_map_using_paths (map_properties, start_positions, fliptype):
         height = len(genmap)
         home = radius - hill_wobstr
         stored = 0
-        run = 0
         while ((home - (minpos / maxpos) * hill_wobstr) > 0):
             n = int(max(yplace - radius, 0))
             while n < int(min(yplace + radius, height)):
@@ -430,8 +429,7 @@ def generate_map_using_paths (map_properties, start_positions, fliptype):
 
                     curverad = home + hill_wobstr * func_out
                     if(curverad > dst):
-                        if(run == 0):
-                            genmap_output[n][m] = genmap[n][m] + hill_func(home, 0, hill_start, radius, hill_maxh, hilltype)
+                        genmap_output[n][m] = genmap[yplace][xplace] + hill_func(home, 0, hill_start, radius, hill_maxh, hilltype)
                     m = m + 1
                 n = n + 1
             home = home - hill_wobstr / 2

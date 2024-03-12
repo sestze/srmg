@@ -8,7 +8,7 @@ Installation Instructions:
 
 	Seed can be changed near the bottom of the script itself.
 
-	Gentype can be changed in the map properties, currently has prefab, voronoi, and paths.
+	Gentype can be changed in the map properties, currently has prefab, voronoi, paths, grid, and provided.
 
 	Outputs the map to maps/srmg_gentype_fliptype_seed/srmg_gentype_fliptype_seed.sd7
 
@@ -28,6 +28,10 @@ You can add your own heightmap families for prefab generation:
 		(R, G, B) of (128, 128, 128) leaves the height the same in the heightmap. Less subtracts from the mapheight, and more adds to the mapheight.
 	3) Create a fablist.txt file with the format of
 		fabname,sizex,sizey
+
+You can add your own heightmap for provided generation:
+	1) Add a 24 bit .bmp to the /provided_generation/ directory
+	2) point the "provided_filename" variable in map_properties to the image.
 
 Dependencies:
 	pypng
