@@ -352,7 +352,7 @@ def generate_texmap_complicated( genmap, texture_family, metmap, mult, minh, pri
             rp = ft[key+1][2]
             rw = ip[rk][0]
             rh = ip[rk][1]
-            rpe = perlin_merge(x, y, lw, lh, lk, tex, pn[y][x])
+            rpe = perlin_merge(x, y, rw, rh, rk, tex, pn[y][x])
             rr = rpe[0]
             rg = rpe[1]
             rb = rpe[2]
