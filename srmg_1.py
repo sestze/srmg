@@ -1716,10 +1716,10 @@ def main( map_properties ):
             mapinfo_vars[ti_text_split_split[0]] = ti_text_split_split[1]
             print("Replaced " + ti_text_split_split[0] + " value with " + ti_text_split_split[1])
 
-    mapinfo_vars["[MAXHEIGHT]"] = int(int(mapinfo_vars["[MAXHEIGHT]"]) + minh) / mult
-    mapinfo_vars["[MINHEIGHT]"] = int(int(mapinfo_vars["[MINHEIGHT]"]) + minh) / mult
-    print("Updated [MAXHEIGHT] to: " + str(mapinfo_vars["[MAXHEIGHT]"]))
-    print("Updated [MINHEIGHT] to: " + str(mapinfo_vars["[MINHEIGHT]"]))
+    #mapinfo_vars["[MAXHEIGHT]"] = int(int(mapinfo_vars["[MAXHEIGHT]"]) + minh) / mult
+    #mapinfo_vars["[MINHEIGHT]"] = int(int(mapinfo_vars["[MINHEIGHT]"]) + minh) / mult
+    #print("Updated [MAXHEIGHT] to: " + str(mapinfo_vars["[MAXHEIGHT]"]))
+    #print("Updated [MINHEIGHT] to: " + str(mapinfo_vars["[MINHEIGHT]"]))
 
     if(map_properties["prismatic"] == True):
         base = 200
