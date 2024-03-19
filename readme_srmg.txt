@@ -8,7 +8,7 @@ Installation Instructions:
 
 	Seed can be changed near the bottom of the script itself.
 
-	Gentype can be changed in the map properties, currently has prefab, voronoi, paths, grid, and provided.
+	Gentype can be changed in the map properties, currently has prefab, voronoi, paths, grid, perlin, and provided.
 
 	Outputs the map to maps/srmg_gentype_fliptype_seed/srmg_gentype_fliptype_seed.sd7
 

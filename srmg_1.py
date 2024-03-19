@@ -13,7 +13,6 @@
 
 #TODO:
 #   - Heightmaps
-#       - Offer a different generation method that uses a premade heightmap
 #   - Metalmap
 #   - Texturemap
 
@@ -39,6 +38,10 @@ import path_generation.path_generation
 import grid_generation.grid_generation
 
 import provided_generation.provided_generation
+
+import perlin_generation.perlin_generation
+
+import complicated_texturing.complicated_texturing
 
 #from typing import BinaryIO, List, Tuple
 from PIL import Image
@@ -198,7 +201,7 @@ def blurmap ( genmap, general, seam, fliptype ):
 
                     dst = pow(pow(xval - m, 2) + pow(yval - n, 2), 0.5)
                     if(dst < scaleblur):
-                        adst = max(-1 * dst + scaleblur, 0)
+                        adst = int(max(-1 * dst + scaleblur, 0))
                         genmap_copy[n][m] = AverageCoordsInCircle(m, n, genmap, adst)
                     m = m + 1
                 n = n + 1
@@ -215,7 +218,7 @@ def blurmap ( genmap, general, seam, fliptype ):
 
                     dst = pow(pow(xval - m, 2) + pow(yval - n, 2), 0.5)
                     if(dst < scaleblur):
-                        adst = max(-1 * dst + scaleblur, 0)
+                        adst = int(max(-1 * dst + scaleblur, 0))
                         genmap_copy[n][m] = AverageCoordsInCircle(m, n, genmap, adst)
                     m = m + 1
                 n = n + 1
@@ -1520,7 +1523,7 @@ def main( map_properties ):
             fliptype = 5
 
     ft_index = ["Horizontal", "Vertical", "TLBR", "BLTR", "Corners", "Crosses"]
-    generation_types = ["prefab", "voronoi", "paths", "grid", "provided"]
+    generation_types = ["prefab", "voronoi", "paths", "grid", "provided", "perlin"]
     if map_properties["generation_type"] not in generation_types:
         map_properties["generation_type"] = random.choice(generation_types)
 
@@ -1592,6 +1595,13 @@ def main( map_properties ):
         genmap = provided_generation.provided_generation.generate_map_using_provided(map_properties)
         start_positions.clear()
         os.chdir(curdir)
+    elif(map_properties["generation_type"] == "perlin"):
+        print("Using Perlin.")
+        os.chdir(curdir + '/perlin_generation')
+        genmap = perlin_generation.perlin_generation.generate_map_using_perlin(map_properties, start_positions, fliptype)
+        genmap = mirror_array(genmap, fliptype)
+        genmap = blurmap(genmap, 3, 0, fliptype)
+        os.chdir(curdir)
     
     #normalize height
     mult, minh = normalize_height(genmap)
@@ -1629,8 +1639,12 @@ def main( map_properties ):
         pris_tht = -1
 
     print("\tpris_tht: " + str(pris_tht))
-    
-    texmap = generate_texmap(genmap, texture_picked, metmap, mult, minh, pris_tht)
+
+    texmap = []
+    if(map_properties["texturing_method"] == "complex"):
+        texmap = complicated_texturing.complicated_texturing.generate_texmap_complicated(genmap, texture_picked, metmap, mult, minh, pris_tht)
+    else:
+        texmap = generate_texmap(genmap, texture_picked, metmap, mult, minh, pris_tht)
 
     texmap_img = Image.new('RGB', (map_properties["mapsizex"] * 512, map_properties["mapsizey"] * 512), 'black')
     texmap_img_pixels = texmap_img.load()
@@ -1851,12 +1865,13 @@ if __name__ == "__main__":
     map_properties = {
         "mapsizex": 12,
         "mapsizey": 12,
-        "seed": 2255,
+        "seed": 9097,
         "numplayers": 8,
-        "generation_type": "provided",     #prefab, voronoi, paths, grid, provided
+        "generation_type": "perlin",     #prefab, voronoi, paths, grid, provided, perlin
         "prismatic": True,               #reduces textures to b&w, then recolors at random
         "provided_filename": "provided_input.bmp",   #located in /provided_generation/
-        "fliptype": -1                  #sets the fliptype manually if not -1.
+        "fliptype": -1,                  #sets the fliptype manually if not -1.
+        "texturing_method": "complex"   #options are simple, complex.
         }
     main(map_properties)
     
