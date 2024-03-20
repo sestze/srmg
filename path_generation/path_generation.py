@@ -280,21 +280,23 @@ def generate_map_using_paths (map_properties, start_positions, fliptype):
                 else:
                     htemp = cubic(n, startspline, startheight, endspline, endheight)
             if(fliptype == 2):
-                threshvar = n * pow(2, 0.5) / 2 + m * pow(2, 0.5) / 2
-                if(n < startspline):
+                #threshvar = n * pow(2, 0.5) / 2 + m * pow(2, 0.5) / 2
+                threshvar = (n + m) / 2
+                if(threshvar < startspline):
                     htemp = startheight
-                elif(n > endspline):
+                elif(threshvar > endspline):
                     htemp = endheight
                 else:
-                    htemp = cubic(n, startspline, startheight, endspline, endheight)
+                    htemp = cubic(threshvar, startspline, startheight, endspline, endheight)
             if(fliptype == 3):
-                threshvar = (height - n) * pow(2, 0.5) / 2 + m * pow(2, 0.5) / 2
-                if(n < startspline):
+                #threshvar = (height - n) * pow(2, 0.5) / 2 + m * pow(2, 0.5) / 2
+                threshvar = ((height - n) + m) / 2
+                if(threshvar < startspline):
                     htemp = startheight
-                elif(n > endspline):
+                elif(threshvar > endspline):
                     htemp = endheight
                 else:
-                    htemp = cubic(n, startspline, startheight, endspline, endheight)
+                    htemp = cubic(threshvar, startspline, startheight, endspline, endheight)
             if(fliptype == 4) or (fliptype == 5):
                 tdst = pow(pow(m, 2) + pow(n, 2), 0.5)
                 threshvar = tdst
@@ -364,8 +366,26 @@ def generate_map_using_paths (map_properties, start_positions, fliptype):
             print("\tyields: " + str(outval))
         return outval
 
+    def perlin_1d_interp( tht, grads ):
+        tht = tht + math.pi
+        tht = min(max(tht, 0), math.pi * 2 - 0.001)
+        
+        key = int((tht / (math.pi * 2)) * len(grads))
+
+        xo = key * math.pi * 2 / len(grads)
+        xt = (key + 1) * math.pi * 2 / len(grads)
+        
+        disp = tht - xo
+        disp2 = tht - xt
+        
+        yo = grads[key % len(grads)][0] * disp
+        yt = grads[(key+1) % len(grads)][0] * disp2
+
+        ret = cubic(tht, xo, yo, xt, yt)
+
+        return ret
+
     def make_contour_hill( xplace, yplace, radius, genmap, wobble, hilltype ):
-        primes = [1, 2, 3, 5, 7]
         hill_wobstr = wobble
         hill_start = 0
         
@@ -377,66 +397,53 @@ def generate_map_using_paths (map_properties, start_positions, fliptype):
 
         genmap_output = copy.deepcopy(genmap)
 
-        sinstr = []
+        grads = []
+        edges = random.randint(6, 10)
         n = 0
-        while n < len(primes):
-            sinstr.append(random.uniform(0, 1) / primes[n])
-            n = n + 1
-
-        maxpos = 0
-        minpos = 0
-        n = -180
-        while n < 180:
-            func_out = 0
-            m = 0
-            while m < len(primes):
-                func_out = func_out + math.sin(math.pi * 2 * primes[m] * n / 180) * sinstr[m]
-                m = m + 1
-            if func_out > maxpos:
-                maxpos = func_out
-            if func_out < minpos:
-                minpos = func_out
+        while n < edges:
+            tht = random.uniform(0, math.pi * 2)
+            r = 1
+            xv = r * math.cos(tht)
+            yv = r * math.sin(tht)
+            grads.append([xv, yv])
             n = n + 1
 
         width = len(genmap[0])
         height = len(genmap)
-        home = radius - hill_wobstr
-        stored = 0
-        while ((home - (minpos / maxpos) * hill_wobstr) > 0):
-            n = int(max(yplace - radius, 0))
-            while n < int(min(yplace + radius, height)):
-                m = int(max(xplace - radius, 0))
-                while m < int(min(xplace + radius, width)):
-                    xdisp = m - xplace
-                    ydisp = n - yplace
+        
+        n = int(max(yplace - radius, 0))
+        while n < int(min(yplace + radius, height)):
+            m = int(max(xplace - radius, 0))
+            while m < int(min(xplace + radius, width)):
+                xdisp = m - xplace
+                ydisp = n - yplace
 
-                    dst = pow(pow(xdisp, 2) + pow(ydisp, 2), 0.5)
-                    ang = 0
-                    if(xdisp == 0):
-                        if(ydisp > 0):
-                            ang = math.pi / 2
-                        else:
-                            ang = math.pi / -2
+                dst = pow(pow(xdisp, 2) + pow(ydisp, 2), 0.5)
+                ang = 0
+                if(xdisp == 0):
+                    if(ydisp > 0):
+                        ang = math.pi / 2
                     else:
-                        ang = math.atan2(ydisp,xdisp)
+                        ang = math.pi / -2
+                else:
+                    ang = math.atan2(ydisp,xdisp)
 
-                    func_out = 0
-                    r = 0
-                    while r < len(primes):
-                        func_out = func_out + math.sin(primes[r] * ang) * sinstr[r]
-                        r = r + 1
-                    func_out = func_out / maxpos
+                func_out = perlin_1d_interp(ang, grads)
 
-                    curverad = home + hill_wobstr * func_out
-                    if(curverad > dst):
-                        genmap_output[n][m] = genmap[yplace][xplace] + hill_func(home, 0, hill_start, radius, hill_maxh, hilltype)
-                    m = m + 1
-                n = n + 1
-            home = home - hill_wobstr / 2
+                curverad = radius + radius * hill_wobstr * func_out
+                featherdst = curverad / 2
+                if(curverad > dst):
+                    hght = genmap[yplace][xplace] + hill_func(dst, 0, hill_start, curverad, hill_maxh, hilltype)
+                    if(dst < featherdst):
+                        genmap_output[n][m] = hght
+                    else:
+                        genmap_output[n][m] = cubic(dst, featherdst, hght, curverad, genmap[n][m])
+                m = m + 1
+            n = n + 1
             
         return genmap_output
 
-    wobble = random.randint(3,7) * 3
+    wobble = random.uniform(0.1, 0.9)
     hilltype = random.randint(0, 2)
     #placing hill
     print("placing hills")

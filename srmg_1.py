@@ -1523,7 +1523,7 @@ def main( map_properties ):
             fliptype = 5
 
     ft_index = ["Horizontal", "Vertical", "TLBR", "BLTR", "Corners", "Crosses"]
-    generation_types = ["prefab", "voronoi", "paths", "grid", "provided", "perlin"]
+    generation_types = ["prefab", "voronoi", "paths", "grid", "provided", "perlin", "perlin_voronoi"]
     if map_properties["generation_type"] not in generation_types:
         map_properties["generation_type"] = random.choice(generation_types)
 
@@ -1602,6 +1602,26 @@ def main( map_properties ):
         genmap = mirror_array(genmap, fliptype)
         genmap = blurmap(genmap, 3, 0, fliptype)
         os.chdir(curdir)
+    elif(map_properties["generation_type"] == "perlin_voronoi"):
+        print("Using Perlin/Voronoi")
+        os.chdir(curdir + '/perlin_generation')
+        genmap2 = perlin_generation.perlin_generation.generate_map_using_perlin(map_properties, start_positions, fliptype)
+        os.chdir(curdir + '/voronoi_generation')
+        genmap3 = voronoi_generation.voronoi_generation.generate_map_using_voronoi(map_properties, start_positions, fliptype)
+        os.chdir(curdir)
+        genmap = []
+        n = 0
+        while n < len(genmap2):
+            m = 0
+            row = []
+            while m < len(genmap2[0]):
+                hght = (genmap2[n][m] + genmap3[n][m]) / 2
+                row.append(hght)
+                m = m + 1
+            genmap.append(row)
+            n = n + 1
+        genmap = mirror_array(genmap, fliptype)
+        genmap = blurmap(genmap, 3, 0, fliptype)
     
     #normalize height
     mult, minh = normalize_height(genmap)
@@ -1865,9 +1885,9 @@ if __name__ == "__main__":
     map_properties = {
         "mapsizex": 12,
         "mapsizey": 12,
-        "seed": 9097,
+        "seed": 123,
         "numplayers": 8,
-        "generation_type": "perlin",     #prefab, voronoi, paths, grid, provided, perlin
+        "generation_type": "paths",     #prefab, voronoi, paths, grid, provided, perlin, perlin_voronoi
         "prismatic": True,               #reduces textures to b&w, then recolors at random
         "provided_filename": "provided_input.bmp",   #located in /provided_generation/
         "fliptype": -1,                  #sets the fliptype manually if not -1.
