@@ -1,4 +1,0 @@
-block_mid_high.bmp,256,256
-block_mid_high_2.bmp,256,256
-block_mid_high_3.bmp,256,256
-block_mid_high_4.bmp,256,256
