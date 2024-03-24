@@ -47,16 +47,18 @@ def blot_position(x, y, flatrad, maxrad, inmap, hght):
 
     return adjmap
 
-def generate_map_using_perlin (map_properties, start_positions, fliptype):
+def generate_map_using_perlin (map_properties, start_positions, fliptype, divmul=1):
     #set up some variables
     width = int(map_properties["mapsizex"]) * 64 + 1
     height = int(map_properties["mapsizey"]) * 64 + 1
     genmap = []
     
-    subdivs = random.randint(1, 2) * 2
+    subdivs = 4 * divmul
 
-    grid_x = map_properties["mapsizex"] / subdivs + 1
-    grid_y = map_properties["mapsizey"] / subdivs + 1
+    #grid_x = map_properties["mapsizex"] / subdivs + 1
+    #grid_y = map_properties["mapsizey"] / subdivs + 1
+    grid_x = subdivs + 1
+    grid_y = subdivs + 1
 
     perlin_grads = []
     n = 0
@@ -77,7 +79,7 @@ def generate_map_using_perlin (map_properties, start_positions, fliptype):
 
     if(fliptype == 0) or (fliptype == 4):
         tht = 0
-        r = 1
+        r = random.uniform(-1, 1)
         xv = r * math.cos(tht)
         yv = r * math.sin(tht)
         n = 0
@@ -89,7 +91,7 @@ def generate_map_using_perlin (map_properties, start_positions, fliptype):
             n = n + 1
     if(fliptype == 1) or (fliptype == 4):
         tht = math.pi / 2
-        r = 1
+        r = random.uniform(-1, 1)
         xv = r * math.cos(tht)
         yv = r * math.sin(tht)
         n = 0
@@ -101,7 +103,7 @@ def generate_map_using_perlin (map_properties, start_positions, fliptype):
             n = n + 1
     if(fliptype == 2) or (fliptype == 5):
         tht = math.pi / -4
-        r = 1
+        r = random.uniform(-1, 1)
         xv = r * math.cos(tht)
         yv = r * math.sin(tht)
         n = 0
@@ -115,7 +117,7 @@ def generate_map_using_perlin (map_properties, start_positions, fliptype):
 
     if(fliptype == 3) or (fliptype == 5):
         tht = math.pi / 4
-        r = 1
+        r = random.uniform(-1, 1)
         xv = r * math.cos(tht)
         yv = r * math.sin(tht)
         n = 0
@@ -153,8 +155,6 @@ def generate_map_using_perlin (map_properties, start_positions, fliptype):
             it = perlin_interpolate(ix1, ix2, (n - ky * dy) / dy)
 
             adjust = (it * 0.5 + 0.5) * 100
-            if(adjust > 100):
-                print(str(adjust))
             row.append(adjust)
             m = m + 1
         genmap.append(row)
@@ -174,7 +174,7 @@ def generate_map_using_perlin (map_properties, start_positions, fliptype):
     print("managing seam")
 
     seam = 0
-    seam_blur = 96
+    seam_blur = 0
 
     if(seam + seam_blur > 0):
         gmc = copy.deepcopy(genmap)
@@ -183,27 +183,42 @@ def generate_map_using_perlin (map_properties, start_positions, fliptype):
             n = 0
             while(n < height):
                 genmap = blot_position(width // 2, n, seam, seam_blur, genmap, gmc[n][width // 2])
-                n = n + seam + seam_blur
+                n = n + (seam + seam_blur) // 2
         if(fliptype == 1) or (fliptype == 4):
             #vert
             n = 0
             while(n < width):
                 genmap = blot_position(n, height // 2, seam, seam_blur, genmap, gmc[height // 2][n])
-                n = n + seam + seam_blur
+                n = n + (seam + seam_blur) // 2
         if(fliptype == 2) or (fliptype == 5):
             #tlbr
             n = 0
             while(n < width):
                 genmap = blot_position(n, height - n - 1, seam, seam_blur, genmap, gmc[height - n - 1][n])
-                n = n + seam + seam_blur
+                n = n + (seam + seam_blur) // 2
         if(fliptype == 3) or (fliptype == 5):
             #bltr
             n = 0
             while(n < width):
                 genmap = blot_position(n, n, seam, seam_blur, genmap, gmc[n][n])
-                n = n + seam + seam_blur
+                n = n + (seam + seam_blur) // 2
 
     print("perlin generation finished")
+
+    print_to_file = False
+    if(print_to_file == True):
+        outfile = Image.new('RGB', (width, height), 'black')
+        outfile_pixels = outfile.load()
+        n = 0
+        while n < height:
+            m = 0
+            while m < width:
+                adj = int(28 + genmap[n][m] / 100 * 200)
+                pix = (adj, adj, adj)
+                outfile_pixels[m,n] = pix
+                m = m + 1
+            n = n + 1
+        outfile.save("perlin_gen_" + str(divmul) + ".bmp")
 
     return genmap
 

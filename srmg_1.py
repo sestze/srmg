@@ -43,6 +43,8 @@ import perlin_generation.perlin_generation
 
 import complicated_texturing.complicated_texturing
 
+import blot_generation.blot_generation
+
 #from typing import BinaryIO, List, Tuple
 from PIL import Image
 
@@ -798,7 +800,7 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
             rbound = int(xcoord - mexdst / pow(2, 0.5))
 
             xvar = random.randint(lbound, rbound)
-            ymax = max(int(ycoord - ycoord/xcoord * xvar - mexdst * 4 / pow(2, 0.5)), ubound + 1)
+            ymax = max(int(ycoord - ycoord/xcoord * xvar - mexdst / pow(2, 0.5)), ubound + 1)
             
             possiblepoint = [xvar, random.randint(ubound, ymax)]
             m = 0
@@ -821,7 +823,7 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
 
                 if(dst < mexdst) or (Skip == True):
                     xvar = random.randint(lbound, rbound)
-                    ymax = max(int(ycoord - ycoord/xcoord * xvar - mexdst * 4 / pow(2, 0.5)), ubound + 1)
+                    ymax = max(int(ycoord - ycoord/xcoord * xvar - mexdst / pow(2, 0.5)), ubound + 1)
             
                     possiblepoint = [xvar, random.randint(ubound, ymax)]
                     m = 0
@@ -845,7 +847,7 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
             rbound = int(xcoord - mexdst / pow(2, 0.5))
 
             xvar = random.randint(lbound, rbound)
-            ymax = min(int(ycoord/xcoord * xvar + mexdst * 4 / pow(2, 0.5)), bbound) - 1
+            ymax = min(int(ycoord/xcoord * xvar + mexdst / pow(2, 0.5)), bbound) - 1
             
             possiblepoint = [xvar, random.randint(ymax, bbound)]
             m = 0
@@ -868,7 +870,7 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
 
                 if(dst < mexdst) or (Skip == True):
                     xvar = random.randint(lbound, rbound)
-                    ymax = min(int(ycoord/xcoord * xvar + mexdst * 4 / pow(2, 0.5)), bbound) - 1
+                    ymax = min(int(ycoord/xcoord * xvar + mexdst / pow(2, 0.5)), bbound) - 1
             
                     possiblepoint = [xvar, random.randint(ymax, bbound)]
                     m = 0
@@ -1523,7 +1525,7 @@ def main( map_properties ):
             fliptype = 5
 
     ft_index = ["Horizontal", "Vertical", "TLBR", "BLTR", "Corners", "Crosses"]
-    generation_types = ["prefab", "voronoi", "paths", "grid", "provided", "perlin", "perlin_voronoi"]
+    generation_types = ["prefab", "voronoi", "paths", "grid", "provided", "perlin", "multi", "blots"]
     if map_properties["generation_type"] not in generation_types:
         map_properties["generation_type"] = random.choice(generation_types)
 
@@ -1576,7 +1578,7 @@ def main( map_properties ):
         #genmap, fliptype = path_generation.path_generation.generate_map_using_paths(map_properties)
         genmap = path_generation.path_generation.generate_map_using_paths(map_properties, start_positions, fliptype)
         genmap = mirror_array(genmap, fliptype)
-        genmap = blurmap(genmap, 3, 5, fliptype)
+        genmap = blurmap(genmap, 3, 0, fliptype)
         os.chdir(curdir)
         #keep in mind:
         # - seam blur is: 0
@@ -1598,28 +1600,79 @@ def main( map_properties ):
     elif(map_properties["generation_type"] == "perlin"):
         print("Using Perlin.")
         os.chdir(curdir + '/perlin_generation')
-        genmap = perlin_generation.perlin_generation.generate_map_using_perlin(map_properties, start_positions, fliptype)
+        genmap = perlin_generation.perlin_generation.generate_map_using_perlin(map_properties, start_positions, fliptype, map_properties["perlin_mods"][0])
         genmap = mirror_array(genmap, fliptype)
         genmap = blurmap(genmap, 3, 0, fliptype)
         os.chdir(curdir)
-    elif(map_properties["generation_type"] == "perlin_voronoi"):
-        print("Using Perlin/Voronoi")
-        os.chdir(curdir + '/perlin_generation')
-        genmap2 = perlin_generation.perlin_generation.generate_map_using_perlin(map_properties, start_positions, fliptype)
-        os.chdir(curdir + '/voronoi_generation')
-        genmap3 = voronoi_generation.voronoi_generation.generate_map_using_voronoi(map_properties, start_positions, fliptype)
+    elif(map_properties["generation_type"] == "blots"):
+        print("Using Blot.")
+        os.chdir(curdir + '/blot_generation')
+        genmap = blot_generation.blot_generation.generate_map_using_blots(map_properties, start_positions, fliptype)
+        genmap = mirror_array(genmap, fliptype)
+        genmap = blurmap(genmap, 3, 0, fliptype)
         os.chdir(curdir)
-        genmap = []
+    elif(map_properties["generation_type"] == "multi"):
+        print("Using multi: " + str(map_properties["multi_types"]))
+        gma = []
+        multitotal = 0
+        pct = 0
         n = 0
-        while n < len(genmap2):
-            m = 0
-            row = []
-            while m < len(genmap2[0]):
-                hght = (genmap2[n][m] + genmap3[n][m]) / 2
-                row.append(hght)
-                m = m + 1
-            genmap.append(row)
+        while n < len(map_properties["multi_types"]):
+            gmt = []
+            if(map_properties["multi_types"][n] == "prefab"):
+                os.chdir(curdir + '/prefab_generation')
+                gmt = prefab_generation.prefab_generation.generate_map_using_prefabs(map_properties, start_positions, fliptype)
+                os.chdir(curdir)
+            if(map_properties["multi_types"][n] == "voronoi"):
+                os.chdir(curdir + '/voronoi_generation')
+                gmt = voronoi_generation.voronoi_generation.generate_map_using_voronoi(map_properties, start_positions, fliptype)
+                os.chdir(curdir)
+            if(map_properties["multi_types"][n] == "paths"):
+                os.chdir(curdir + '/path_generation')
+                gmt = path_generation.path_generation.generate_map_using_paths(map_properties, start_positions, fliptype)
+                os.chdir(curdir)
+            if(map_properties["multi_types"][n] == "grid"):
+                os.chdir(curdir + '/grid_generation')
+                gmt = grid_generation.grid_generation.generate_map_using_grid(map_properties, start_positions, fliptype)
+                os.chdir(curdir)
+            if(map_properties["multi_types"][n] == "provided"):
+                os.chdir(curdir + '/provided_generation')
+                gmt = provided_generation.provided_generation.generate_map_using_provided(map_properties)
+                os.chdir(curdir)
+            if(map_properties["multi_types"][n] == "perlin"):
+                os.chdir(curdir + '/perlin_generation')
+                gmt = perlin_generation.perlin_generation.generate_map_using_perlin(map_properties, start_positions, fliptype, map_properties["perlin_mods"][pct%len(map_properties["perlin_mods"])])
+                pct = pct + 1
+                os.chdir(curdir)
+            if(map_properties["multi_types"][n] == "blots"):
+                os.chdir(curdir + '/blot_generation')
+                gmt = blot_generation.blot_generation.generate_map_using_blots(map_properties, start_positions, fliptype)
+                gmt = blurmap(gmt, 3, 0, fliptype)
+                os.chdir(curdir)
+            multitotal = multitotal + map_properties["multi_weight"][n % len(map_properties["multi_weight"])]
+            gma.append(gmt)
             n = n + 1
+        genmap = []
+        
+        r = 0
+        while r < len(gma):
+            n = 0
+            while n < len(gma[r]):
+                row = []
+                m = 0
+                while m < len(gma[r][0]):
+                    hght = gma[r][n][m] * map_properties["multi_weight"][r%len(map_properties["multi_weight"])] / multitotal
+                    if(r == 0):
+                        row.append(hght)
+                    else:                        
+                        genmap[n][m] = genmap[n][m] + gma[r][n][m] * map_properties["multi_weight"][r%len(map_properties["multi_weight"])] / multitotal
+                    m = m + 1
+                if(r == 0):
+                    genmap.append(row)
+                n = n + 1
+            r = r + 1
+        n = 0
+        
         genmap = mirror_array(genmap, fliptype)
         genmap = blurmap(genmap, 3, 0, fliptype)
     
@@ -1885,13 +1938,16 @@ if __name__ == "__main__":
     map_properties = {
         "mapsizex": 12,
         "mapsizey": 12,
-        "seed": 123,
+        "seed": 101118,
         "numplayers": 8,
-        "generation_type": "paths",     #prefab, voronoi, paths, grid, provided, perlin, perlin_voronoi
+        "generation_type": "multi",     #prefab, voronoi, paths, grid, provided, perlin, multi
         "prismatic": True,               #reduces textures to b&w, then recolors at random
         "provided_filename": "provided_input.bmp",   #located in /provided_generation/
         "fliptype": -1,                  #sets the fliptype manually if not -1.
-        "texturing_method": "complex"   #options are simple, complex.
+        "texturing_method": "complex",   #options are simple, complex.
+        "multi_types": ["prefab", "perlin", "perlin", "perlin", "perlin", "perlin", "perlin"],
+        "multi_weight": [64, 32, 16, 8, 4, 2, 1],          #sets averaging "weights" for each multi type.
+        "perlin_mods": [1, 2, 4, 8, 16, 32]
         }
     main(map_properties)
     

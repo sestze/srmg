@@ -37,3 +37,7 @@ Dependencies:
 	pypng
 	py7zr
 	PIL
+
+External Credits:
+Prefabs: Deltas, Fjords, Late2022, MesaTest, MountainTest_Series, Noise, and November_Series are from CaptainKlutz and are used under the creative commons license
+https://github.com/CaptainKlutz/TerrainBrushes
