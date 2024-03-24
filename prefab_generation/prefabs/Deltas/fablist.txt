@@ -1,0 +1,4 @@
+Delta_Round_1.bmp,256,256
+Delta_Round_2.bmp,256,256
+Delta_Square_1.bmp,256,256
+Delta_Square_2.bmp,256,256

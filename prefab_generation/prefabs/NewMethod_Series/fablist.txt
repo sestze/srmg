@@ -1,0 +1,10 @@
+New_Hills1.bmp,256,256
+New_Hills2.bmp,256,256
+New_Peak1.bmp,256,256
+New_Peak2.bmp,256,256
+New_Peak3.bmp,256,256
+New_Ridge1.bmp,256,256
+New_Ridge2.bmp,256,256
+New_Sprawl1.bmp,256,256
+New_Sprawl2.bmp,256,256
+New_Sprawl3.bmp,256,256

@@ -1,0 +1,4 @@
+Nov_Peaks.bmp,256,256
+Nov_PlatAlt.bmp,256,256
+Nov_Plateau.bmp,256,256
+Nov_Raised.bmp,256,256

@@ -1,0 +1,8 @@
+l2_ChannelCrater.bmp,256,256
+L2_ChannelPeak.bmp,256,256
+L2_Chevron.bmp,256,256
+L2_Ridge.bmp,256,256
+L2_Ridge2.bmp,256,256
+L2_RidgeAlt.bmp,256,256
+L2_SimplePeak.bmp,256,256
+L2_SimplePeakAlt.bmp,256,256

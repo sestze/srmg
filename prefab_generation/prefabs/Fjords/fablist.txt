@@ -1,0 +1,5 @@
+Fjord_1.bmp,256,256
+Fjord_2.bmp,256,256
+Fjord_3.bmp,256,256
+Fjord_4.bmp,256,256
+Fjord_5.bmp,256,256
