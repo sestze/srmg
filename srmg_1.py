@@ -1505,6 +1505,37 @@ def normalize_height( genmap ):
     mult = 100 / (maxh - minh)
     return mult, minh
 
+def full_normalize( genmap ):
+    print('heightmap normalizing')
+    gmc = copy.deepcopy(genmap)
+    minh = 100
+    maxh = 0
+    n = 0
+    while n < len(genmap):
+        m = 0
+        while m < len(genmap[0]):
+            if(genmap[n][m] > maxh):
+                maxh = genmap[n][m]
+            if(genmap[n][m] < minh):
+                minh = genmap[n][m]
+            m = m + 1
+        n = n + 1
+
+    n = 0
+    while n < len(genmap):
+        m = 0
+        while m < len(genmap[0]):
+            hght = 50
+            if(minh != maxh):
+                hght = (gmc[n][m] - minh) / (maxh - minh)
+                hght = hght * 100
+                genmap[n][m] = hght
+            m = m + 1
+        n = n + 1
+    print('heightmap normalized: (' + str(minh) + ", " + str(maxh) + ") -> (0, 100)")
+
+    return genmap
+
 def main( map_properties ):
     texture_families = []
     texture_families = GetTextureFamilies()
@@ -1675,6 +1706,9 @@ def main( map_properties ):
         
         genmap = mirror_array(genmap, fliptype)
         genmap = blurmap(genmap, 3, 0, fliptype)
+
+    if(map_properties["normalize_heightmap"] == True):
+        genmap = full_normalize(genmap)
     
     #normalize height
     mult, minh = normalize_height(genmap)
@@ -1947,7 +1981,8 @@ if __name__ == "__main__":
         "texturing_method": "complex",   #options are simple, complex.
         "multi_types": ["prefab", "perlin", "perlin", "perlin", "perlin", "perlin", "perlin"],
         "multi_weight": [64, 32, 16, 8, 4, 2, 1],          #sets averaging "weights" for each multi type.
-        "perlin_mods": [1, 2, 4, 8, 16, 32]
+        "perlin_mods": [1, 2, 4, 8, 16, 32],
+        "normalize_heightmap": True
         }
     main(map_properties)
     
