@@ -35,6 +35,8 @@ import zlib
 import math
 import os
 
+import copy
+
 from PIL import Image
 
 def get_prefab_families ():
@@ -142,6 +144,24 @@ def place_prefab(genmap, prefab_object, xplace, yplace):
 
     return retmap
 
+def blot_position(x, y, flatrad, maxrad, inmap, hght):
+    adjmap = copy.deepcopy(inmap)
+
+    n = int(max(0, y - (flatrad + maxrad)))
+    while n < int(min(len(inmap) - 1, y + (flatrad + maxrad))):
+        m = int(max(0, x - (flatrad + maxrad)))
+        while m < int(min(len(inmap) - 1, x + (flatrad + maxrad))):
+            dst = pow(pow(x - m, 2) + pow(y - n, 2), 0.5)
+            if(dst < flatrad):
+                adjmap[n][m] = hght
+            elif(dst < maxrad):
+                p = (dst - flatrad) / (maxrad - flatrad)
+                adjmap[n][m] = hght * (1 - p) + inmap[n][m] * p
+            m = m + 1
+        n = n + 1
+
+    return adjmap
+
 def generate_map_using_prefabs (map_properties, start_positions, fliptype):
     #set up some variables
     width = int(map_properties["mapsizex"]) * 64 + 1
@@ -169,7 +189,7 @@ def generate_map_using_prefabs (map_properties, start_positions, fliptype):
         endspline = int(endspline * height)
     if(fliptype == 2) or (fliptype == 3) or (fliptype == 4) or (fliptype == 5):
         startspline = int(startspline * (height + width) / 2)
-        startspline = int(endspline * (height + width) / 2)
+        endspline = int(endspline * (height + width) / 2)
     
     print("Map Statistics: ")
     print("\tSeed: " + str(map_properties["seed"]))
@@ -229,21 +249,21 @@ def generate_map_using_prefabs (map_properties, start_positions, fliptype):
                     else:
                         htemp = cubic(n, startspline, startheight, endspline, endheight)
                 if(fliptype == 2):
-                    threshvar = n * pow(2, 0.5) / 2 + m * pow(2, 0.5) / 2
-                    if(n < startspline):
+                    threshvar = (n + m) / 2
+                    if(threshvar < startspline):
                         htemp = startheight
-                    elif(n > endspline):
+                    elif(threshvar > endspline):
                         htemp = endheight
                     else:
-                        htemp = cubic(n, startspline, startheight, endspline, endheight)
+                        htemp = cubic(threshvar, startspline, startheight, endspline, endheight)
                 if(fliptype == 3):
-                    threshvar = (height - n) * pow(2, 0.5) / 2 + m * pow(2, 0.5) / 2
-                    if(n < startspline):
+                    threshvar = ((height - n) + m) / 2
+                    if(threshvar < startspline):
                         htemp = startheight
-                    elif(n > endspline):
+                    elif(threshvar > endspline):
                         htemp = endheight
                     else:
-                        htemp = cubic(n, startspline, startheight, endspline, endheight)
+                        htemp = cubic(threshvar, startspline, startheight, endspline, endheight)
                 if(fliptype == 4) or (fliptype == 5):
                     tdst = pow(pow(m, 2) + pow(n, 2), 0.5)
                     threshvar = tdst
@@ -266,8 +286,8 @@ def generate_map_using_prefabs (map_properties, start_positions, fliptype):
     prefab_number = random.randint(12, 16) * (map_properties["mapsizex"] + map_properties["mapsizey"]) / 24
     if(fliptype == 4) or (fliptype == 5):
         prefab_number = prefab_number // 2
-    prefab_overall_scalar_low = random.uniform(0.1, 0.45)
-    prefab_overall_scalar_high = random.uniform(0.45, 1)
+    prefab_overall_scalar_low = random.uniform(0.5,0.9)
+    prefab_overall_scalar_high = random.uniform(1.1, 1.5)
     
     print("\tprefab_number: " + str(prefab_number))
     print("\tprefab_overall_scalar_low: " + str(prefab_overall_scalar_low))
@@ -281,25 +301,63 @@ def generate_map_using_prefabs (map_properties, start_positions, fliptype):
     DZ = []
     n = 0
     while n < len(start_positions):
-        DZ.append([start_positions[n][0] * width, start_positions[n][1] * height, 12])
+        DZ.append([start_positions[n][0] * width, start_positions[n][1] * height, 24])
         n = n + 1
 
+    blockseam = False
+    if(blockseam == True):
+        seamdz = 1
+        seamsplit = 12
+        if(fliptype == 0) or (fliptype == 4):
+            n = 0
+            while n < height:
+                xp = width / 2
+                yp = n
+                DZ.append([xp, yp, seamdz])
+                n = n + seamsplit
+        if(fliptype == 1) or (fliptype == 4):
+            n = 0
+            while n < width:
+                xp = n
+                yp = height / 2
+                DZ.append([xp, yp, seamdz])
+                n = n + seamsplit
+        if(fliptype == 2) or (fliptype == 5):
+            n = 0
+            while n < width:
+                xp = n
+                yp = height - n - 1
+                DZ.append([xp, yp, seamdz])
+                n = n + seamsplit
+        if(fliptype == 3) or (fliptype == 5):
+            n = 0
+            while n < width:
+                xp = n
+                yp = n
+                DZ.append([xp, yp, seamdz])
+                n = n + seamsplit
+            
     def CheckDeadZone( x, y, pfo_w, pfo_h, deadzones):
         n = 0
         while n < len(deadzones):
-            pfo_rad = max(pfo_w, pfo_h) / 4
+            pfo_rad = pow(pow(pfo_w / 2, 2) + pow(pfo_h / 2, 2), 0.5)
             dz_rad = deadzones[n][2]
 
-            dst = pow(pow(x - deadzones[n][0], 2) + pow(y - deadzones[n][1], 2), 0.5)
+            dst = pow(pow((x + pfo_w / 2) - deadzones[n][0], 2) + pow((y + pfo_h / 2) - deadzones[n][1], 2), 0.5)
             #print("Deadzone check: " + str(dst) + " vs " + str(pfo_rad) + " + " + str(dz_rad))
             if(dst < (pfo_rad + dz_rad)):
+                #print("\n")
+                #print("Deadzone fail: " + str(dst) + " vs " + str(pfo_rad) + " + " + str(dz_rad))
+                #print("position: " + str(x) + ", " + str(y))
+                #print("dz pos: " + str(deadzones[n][0]) + ", " + str(deadzones[n][1]))
+                #print("size: " + str(pfo_w) + ", " + str(pfo_h))
                 return True
             n = n + 1
         return False
 
     n = 0
     while n < prefab_number:
-        prefab_severity = random.uniform(0.25, 2)
+        prefab_severity = random.uniform(0.75, 1)
         prefab_object = get_prefab_object(chosen_family, prefab_info, random.uniform(prefab_overall_scalar_low, prefab_overall_scalar_high), prefab_severity, width, height)
         pfo_w = len(prefab_object[0])
         pfo_h = len(prefab_object)
@@ -314,6 +372,9 @@ def generate_map_using_prefabs (map_properties, start_positions, fliptype):
             divx = 2
             divy = 2
 
+        xupper = int((width / divx) - pfo_w / 2)
+        yupper = int((height / divy) - pfo_h / 2)
+
         xplace = random.randint(-1 * pfo_w // 2, int((width / divx) - pfo_w / 2))
         yplace = random.randint(-1 * pfo_h // 2, int((height / divy) - pfo_h / 2))
 
@@ -322,13 +383,13 @@ def generate_map_using_prefabs (map_properties, start_positions, fliptype):
             yplace = random.randint(-1 * pfo_h // 2, yupper)
 
         if(fliptype == 3):
-            xupper = max(yplace, -1 * pfo_w // 2 + 1)
+            xupper = max(yplace - pfo_h // 2, -1 * pfo_w // 2 + 1)
             xplace = random.randint(-1 * pfo_w // 2, xupper)
 
         if(fliptype == 5):
-            xupper = max(-1 * abs(yplace - height // 2) + width // 2, -1 * pfo_w // 2) + 1
+            xupper = max(-1 * abs(yplace - height // 2) + width // 2 - pfo_w // 2, -1 * pfo_w // 2) + 1
             xplace = random.randint(-1 * pfo_w // 2, xupper)
-        r = 5000
+        r = 25000
         while((CheckDeadZone(xplace, yplace, pfo_w, pfo_h, DZ)) and (r > 0)):
             xplace = random.randint(-1 * pfo_w // 2, int((width / divx) - pfo_w / 2))
             yplace = random.randint(-1 * pfo_h // 2, int((height / divy) - pfo_h / 2))
@@ -338,23 +399,61 @@ def generate_map_using_prefabs (map_properties, start_positions, fliptype):
                 yplace = random.randint(-1 * pfo_h // 2, yupper)
 
             if(fliptype == 3):
-                xupper = max(yplace, -1 * pfo_w // 2 + 1)
+                xupper = max(yplace - pfo_h // 2, -1 * pfo_w // 2 + 1)
                 xplace = random.randint(-1 * pfo_w // 2, xupper)
 
             if(fliptype == 5):
-                xupper = max(-1 * abs(yplace - height // 2) + width // 2, -1 * pfo_w // 2) + 1
+                xupper = max(-1 * abs(yplace - height // 2) + width // 2 - pfo_w // 2, -1 * pfo_w // 2) + 1
                 xplace = random.randint(-1 * pfo_w // 2, xupper)
             r = r - 1
 
         if(r > 0):
             genmap = place_prefab(genmap, prefab_object, xplace, yplace)
-            DZ.append([xplace, yplace, max(pfo_w, pfo_h) / 4])
+            DZ.append([xplace + pfo_w / 2, yplace + pfo_h / 2, pow(pow(pfo_w / 2, 2) + pow(pfo_h / 2,2), 0.5) / 2])
             print("prefab placed at: (" + str(xplace) + ", " + str(yplace) + ")")
         else:
             print("ran out of prefab spots due to space. exiting.")
             n = prefab_number
 
         n = n + 1
+        
+    #debug, used to see if prefabs are placed correctly
+    #n = 0
+    #while n < len(DZ):
+    #    genmap = blot_position(DZ[n][0], DZ[n][1], DZ[n][2], 0, genmap, 0)
+    #    n = n + 1
+
+    seam = 0
+    seam_blur = 0
+
+    gmc = []
+
+    if(seam + seam_blur > 0):
+        gmc = copy.deepcopy(genmap)
+        if(fliptype == 0) or (fliptype == 4):
+            #horiz
+            n = 0
+            while(n < height):
+                genmap = blot_position(width // 2, n, seam, seam_blur, genmap, gmc[n][width // 2])
+                n = n + (seam + seam_blur) // 2
+        if(fliptype == 1) or (fliptype == 4):
+            #vert
+            n = 0
+            while(n < width):
+                genmap = blot_position(n, height // 2, seam, seam_blur, genmap, gmc[height // 2][n])
+                n = n + (seam + seam_blur) // 2
+        if(fliptype == 2) or (fliptype == 5):
+            #tlbr
+            n = 0
+            while(n < width):
+                genmap = blot_position(n, height - n - 1, seam, seam_blur, genmap, gmc[height - n - 1][n])
+                n = n + (seam + seam_blur) // 2
+        if(fliptype == 3) or (fliptype == 5):
+            #bltr
+            n = 0
+            while(n < width):
+                genmap = blot_position(n, n, seam, seam_blur, genmap, gmc[n][n])
+                n = n + (seam + seam_blur) // 2
 
     print("prefab generation finished")
 
