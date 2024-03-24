@@ -1,5 +1,0 @@
-cactus_peak_1.bmp,256,256
-cactus_peak_2.bmp,256,256
-cactus_peak_3.bmp,256,256
-cactus_peak_4.bmp,256,256
-cactus_peak_3_inv.bmp,256,256
