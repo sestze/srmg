@@ -1,4 +1,0 @@
-128_128_circle_0_blur.bmp,256,256
-128_128_circle_25_blur.bmp,256,256
-128_128_circle_75_blur.bmp,256,256
-128_128_circle_100_blur.bmp,256,256
