@@ -549,7 +549,7 @@ def generate_expandmap ( genmap ):
     while n < (len(flattened)):
         m = 0
         row = []
-        while m < (len(flattened)):
+        while m < (len(flattened[n])):
             r = 0
             while r < 8:
                 row.append(flattened[n][m])
@@ -648,8 +648,10 @@ def generate_metalmap( genmap, start_positions, fliptype, map_properties ):
     #other points of interest...
     #currently just even spread + noise, later we can analyze the condensemap to do something more clever
     #mexcount = max(int(((map_properties["mapsizex"] * map_properties["mapsizey"]) - map_properties["numplayers"] * 3) / 3.5), 2)
-    mexcount = map_properties["numplayers"] * 4 * (map_properties["mapsizex"] + map_properties["mapsizey"]) // 24
-    basemexcount = mexcount + map_properties["numplayers"] * random.randint(3, 6)
+    #mexcount = map_properties["numplayers"] * 4 * (map_properties["mapsizex"] + map_properties["mapsizey"]) // 24
+    #basemexcount = mexcount + map_properties["numplayers"] * random.randint(3, 6)
+    basemexcount = int(map_properties["mapsizex"] * map_properties["mapsizey"] * random.uniform(0.5, 1))
+    mexcount = max(basemexcount - map_properties["numplayers"] * 6, 0)
     mexcount = int(mexcount / 2)
     if(fliptype == 4) or (fliptype == 5):
         mexcount = mexcount // 2
@@ -1972,14 +1974,14 @@ if __name__ == "__main__":
     map_properties = {
         "mapsizex": 12,
         "mapsizey": 12,
-        "seed": 101118,
-        "numplayers": 8,
+        "seed": 100,
+        "numplayers": 8,                #per team, halved for fliptypes 4 or 5
         "generation_type": "multi",     #prefab, voronoi, paths, grid, provided, perlin, multi
         "prismatic": True,               #reduces textures to b&w, then recolors at random
         "provided_filename": "provided_input.bmp",   #located in /provided_generation/
         "fliptype": -1,                  #sets the fliptype manually if not -1.
         "texturing_method": "complex",   #options are simple, complex.
-        "multi_types": ["prefab", "perlin", "perlin", "perlin", "perlin", "perlin", "perlin"],
+        "multi_types": ["blots", "perlin", "perlin", "perlin", "perlin", "perlin", "perlin"],
         "multi_weight": [64, 32, 16, 8, 4, 2, 1],          #sets averaging "weights" for each multi type.
         "perlin_mods": [1, 2, 4, 8, 16, 32],
         "normalize_heightmap": True

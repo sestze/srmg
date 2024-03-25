@@ -31,7 +31,7 @@ def generate_expandmap ( genmap ):
     while n < (len(flattened)):
         m = 0
         row = []
-        while m < (len(flattened)):
+        while m < (len(flattened[n])):
             r = 0
             while r < 8:
                 row.append(flattened[n][m])
@@ -250,7 +250,7 @@ def generate_texmap_complicated( genmap, texture_family, metmap, mult, minh, pri
     while n < total_height:
         m = 0
         row = []
-        while m < total_height:
+        while m < total_width:
             gradx = m // div
             grady = n // div
 
@@ -499,18 +499,18 @@ def generate_texmap_complicated( genmap, texture_family, metmap, mult, minh, pri
             while m < 32:
                 xs = metcoords[r][0] + m
                 ys = metcoords[r][1] + n
+                if(xs < len(texmap[0])) and (ys < len(texmap)):
+                    pixch = texmap[ys][xs]
 
-                pixch = texmap[ys][xs]
-
-                ro = pixch[0] * (255 - metimg[n % 32][m % 32][3]) / 255 + metimg[n % 32][m % 32][0] * metimg[n % 32][m % 32][3] / 255
-                go = pixch[1] * (255 - metimg[n % 32][m % 32][3]) / 255 + metimg[n % 32][m % 32][1] * metimg[n % 32][m % 32][3] / 255
-                bo = pixch[2] * (255 - metimg[n % 32][m % 32][3]) / 255 + metimg[n % 32][m % 32][2] * metimg[n % 32][m % 32][3] / 255
-                texmap[ys][xs] = (int(ro), int(go), int(bo))
+                    ro = pixch[0] * (255 - metimg[n % 32][m % 32][3]) / 255 + metimg[n % 32][m % 32][0] * metimg[n % 32][m % 32][3] / 255
+                    go = pixch[1] * (255 - metimg[n % 32][m % 32][3]) / 255 + metimg[n % 32][m % 32][1] * metimg[n % 32][m % 32][3] / 255
+                    bo = pixch[2] * (255 - metimg[n % 32][m % 32][3]) / 255 + metimg[n % 32][m % 32][2] * metimg[n % 32][m % 32][3] / 255
+                    texmap[ys][xs] = (int(ro), int(go), int(bo))
                 m = m + 1
             n = n + 1
         r = r + 1
     print("metal textures finished")
-   
+
     return texmap    
 
 if __name__ == "__main__":
