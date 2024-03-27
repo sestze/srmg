@@ -43,6 +43,8 @@ import perlin_generation.perlin_generation
 
 import complicated_texturing.complicated_texturing
 
+import macro_generation.macro_generation
+
 import blot_generation.blot_generation
 
 #from typing import BinaryIO, List, Tuple
@@ -1558,7 +1560,7 @@ def main( map_properties ):
             fliptype = 5
 
     ft_index = ["Horizontal", "Vertical", "TLBR", "BLTR", "Corners", "Crosses"]
-    generation_types = ["prefab", "voronoi", "paths", "grid", "provided", "perlin", "multi", "blots"]
+    generation_types = ["prefab", "voronoi", "paths", "grid", "provided", "perlin", "multi", "blots", "macro"]
     if map_properties["generation_type"] not in generation_types:
         map_properties["generation_type"] = random.choice(generation_types)
 
@@ -1644,6 +1646,13 @@ def main( map_properties ):
         genmap = mirror_array(genmap, fliptype)
         genmap = blurmap(genmap, 3, 0, fliptype)
         os.chdir(curdir)
+    elif(map_properties["generation_type"] == "macro"):
+        print("Using macro")
+        os.chdir(curdir + '/macro_generation')
+        genmap = macro_generation.macro_generation.generate_map_using_macros(map_properties, start_positions, fliptype)
+        genmap = mirror_array(genmap, fliptype)
+        genmap = blurmap(genmap, 3, 0, fliptype)
+        os.chdir(curdir)
     elif(map_properties["generation_type"] == "multi"):
         print("Using multi: " + str(map_properties["multi_types"]))
         gma = []
@@ -1681,6 +1690,10 @@ def main( map_properties ):
                 os.chdir(curdir + '/blot_generation')
                 gmt = blot_generation.blot_generation.generate_map_using_blots(map_properties, start_positions, fliptype)
                 gmt = blurmap(gmt, 3, 0, fliptype)
+                os.chdir(curdir)
+            if(map_properties["multi_types"][n] == "macro"):
+                os.chdir(curdir + '/macro_generation')
+                gmt = macro_generation.macro_generation.generate_map_using_macros(map_properties, start_positions, fliptype)
                 os.chdir(curdir)
             multitotal = multitotal + map_properties["multi_weight"][n % len(map_properties["multi_weight"])]
             gma.append(gmt)
@@ -1974,15 +1987,15 @@ if __name__ == "__main__":
     map_properties = {
         "mapsizex": 12,
         "mapsizey": 12,
-        "seed": 100,
+        "seed": 246,
         "numplayers": 8,                #per team, halved for fliptypes 4 or 5
         "generation_type": "multi",     #prefab, voronoi, paths, grid, provided, perlin, multi
         "prismatic": True,               #reduces textures to b&w, then recolors at random
         "provided_filename": "provided_input.bmp",   #located in /provided_generation/
         "fliptype": -1,                  #sets the fliptype manually if not -1.
         "texturing_method": "complex",   #options are simple, complex.
-        "multi_types": ["blots", "perlin", "perlin", "perlin", "perlin", "perlin", "perlin"],
-        "multi_weight": [64, 32, 16, 8, 4, 2, 1],          #sets averaging "weights" for each multi type.
+        "multi_types": ["blots", "macro", "perlin", "perlin", "perlin", "perlin", "perlin", "perlin"],
+        "multi_weight": [64, 32, 32, 16, 8, 4, 2, 1],          #sets averaging "weights" for each multi type.
         "perlin_mods": [1, 2, 4, 8, 16, 32],
         "normalize_heightmap": True
         }

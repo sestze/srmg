@@ -41,6 +41,8 @@ def generate_map_using_paths (map_properties, start_positions, fliptype):
     if(fliptype == 2) or (fliptype == 3) or (fliptype == 4) or (fliptype == 5):
         startspline = int(startspline * (height + width) / 2)
         endspline = int(endspline * (height + width) / 2)
+    startheight = 50
+    endheight = 50
 
     numpaths = random.randint(2, 4)
     if(fliptype == 4) or (fliptype == 5):

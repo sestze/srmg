@@ -116,17 +116,17 @@ def generate_map_using_voronoi (map_properties, start_positions, fliptype):
             xpos = random.randint(int(xs), int(xtot))
             ypos = random.randint(int(ys), int(ytot))
         elif(fliptype == 2):
-            xpos = random.randint(xs, xtot)
+            xpos = random.randint(int(xs), int(xtot))
             ymax = max(int(ys)+1, int(height - height / width * xpos - mindist))
             ypos = random.randint(int(ys), int(ymax))
         elif(fliptype == 3):
-            xpos = random.randint(xs, xtot)
+            xpos = random.randint(int(xs), int(xtot))
             ymax = min(int(height/width * xpos - mindist), int(ytot - 1))
             ypos = random.randint(int(ymax), int(ytot))
         elif(fliptype == 5):
-            ypos = random.randint(ys, ytot)
+            ypos = random.randint(int(ys), int(ytot))
             xmax = max(int(xs+1), int(-1 * (width/height) * abs(ypos - height / 2) + width / 2))
-            xpos = random.randint(int(xs), xmax)
+            xpos = random.randint(int(xs), int(xmax))
             
 
         setheight = random.randint(1, 4) * 20
@@ -142,15 +142,15 @@ def generate_map_using_voronoi (map_properties, start_positions, fliptype):
                     xpos = random.randint(int(xs), int(xtot))
                     ypos = random.randint(int(ys), int(ytot))
                 elif(fliptype == 2):
-                    xpos = random.randint(xs, xtot)
+                    xpos = random.randint(int(xs), int(xtot))
                     ymax = max(int(ys)+1, int(height - height / width * xpos - mindist))
                     ypos = random.randint(int(ys), int(ymax))
                 elif(fliptype == 3):
-                    xpos = random.randint(xs, xtot)
+                    xpos = random.randint(int(xs), int(xtot))
                     ymax = min(int(height/width * xpos - mindist), int(ytot - 1))
                     ypos = random.randint(int(ymax), int(ytot))
                 elif(fliptype == 5):
-                    ypos = random.randint(ys, ytot)
+                    ypos = random.randint(int(ys), int(ytot))
                     xmax = max(int(xs+1), int(-1 * (width/height) * abs(ypos - height / 2) + width / 2))
                     xpos = random.randint(int(xs), xmax)
             r = r - 1
@@ -180,7 +180,7 @@ def generate_map_using_voronoi (map_properties, start_positions, fliptype):
             n = n + 1
         else:
             print("bailed at " + str(n) + " voronoi placements - ran out of space.")
-            n = voronoi_max
+            n = voronoi_max + voronoi_dead_max
         
     #set heights based on voronoi
     voronoi_type = random.randint(0, 3)
@@ -334,6 +334,11 @@ def generate_map_using_voronoi (map_properties, start_positions, fliptype):
                                     rcnt = rcnt + 1
                             if(fliptype == 2) or (fliptype == 3) or (fliptype == 4) or (fliptype == 5):
                                 vpd = pow(pow(voronoi_points[m][0] - voronoi_points[n][0], 2) + pow(voronoi_points[m][1] - voronoi_points[m][1], 2), 0.5)
+                                skip = False
+                                if (vpd < 1):
+                                    voronoi_points[m][3] = 1
+                                    skip = True
+                                    vpd = 1
                                 vecx = (voronoi_points[m][0] - voronoi_points[n][0]) / vpd
                                 vecy = (voronoi_points[m][1] - voronoi_points[m][1]) / vpd
 
@@ -341,7 +346,7 @@ def generate_map_using_voronoi (map_properties, start_positions, fliptype):
                                 toy = width // 2 - voronoi_points[n][1]
 
                                 dot = tox * vecx + toy * vecy
-                                if(dot > 0):
+                                if(dot > 0) and (skip == False):
                                     genmap = make_ramp(genmap, voronoi_points, n, m, rampwidth)
                                     print("ramp formed between points " + str(n) + " and " + str(m))
                                     rcnt = rcnt + 1
@@ -359,6 +364,11 @@ def generate_map_using_voronoi (map_properties, start_positions, fliptype):
                                     key = m
                             if(fliptype == 2) or (fliptype == 3) or (fliptype == 4) or (fliptype == 5):
                                 vpd = pow(pow(voronoi_points[m][0] - voronoi_points[n][0], 2) + pow(voronoi_points[m][1] - voronoi_points[m][1], 2), 0.5)
+                                skip = False
+                                if(vpd < 1):
+                                    vpd = 1
+                                    voronoi_points[m][3] = 1
+                                    skip = True
                                 vecx = (voronoi_points[m][0] - voronoi_points[n][0]) / vpd
                                 vecy = (voronoi_points[m][1] - voronoi_points[m][1]) / vpd
 
@@ -366,7 +376,7 @@ def generate_map_using_voronoi (map_properties, start_positions, fliptype):
                                 toy = width // 2 - voronoi_points[n][1]
 
                                 dot = tox * vecx + toy * vecy
-                                if(dot > 0):
+                                if(dot > 0) and (skip == False):
                                     ldst = dst
                                     key = m
             m = m + 1
