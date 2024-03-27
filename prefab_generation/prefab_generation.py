@@ -177,6 +177,8 @@ def generate_map_using_prefabs (map_properties, start_positions, fliptype):
     if(slopechoice == 1):
         startheight = random.randint(6, 8) * 10
         endheight = 100 - startheight
+    startheight = 50
+    endheight = 50
 
     startspline = random.uniform(3/32, 7/32)
     endspline = random.uniform(9/32, 15/32)
@@ -338,10 +340,11 @@ def generate_map_using_prefabs (map_properties, start_positions, fliptype):
                 n = n + seamsplit
             
     def CheckDeadZone( x, y, pfo_w, pfo_h, deadzones):
+        DZ_MUL = 0.5
         n = 0
         while n < len(deadzones):
-            pfo_rad = pow(pow(pfo_w / 2, 2) + pow(pfo_h / 2, 2), 0.5)
-            dz_rad = deadzones[n][2]
+            pfo_rad = pow(pow(pfo_w / 2, 2) + pow(pfo_h / 2, 2), 0.5) * DZ_MUL
+            dz_rad = deadzones[n][2] * DZ_MUL
 
             dst = pow(pow((x + pfo_w / 2) - deadzones[n][0], 2) + pow((y + pfo_h / 2) - deadzones[n][1], 2), 0.5)
             #print("Deadzone check: " + str(dst) + " vs " + str(pfo_rad) + " + " + str(dz_rad))
